@@ -1,0 +1,16 @@
+# Ignore Ollama data and massive model blobs
+stack/ollama/data/
+stack/ollama/models/
+*.log
+
+# Ignore Interrupted downloads
+*.partial
+*.partial-*
+
+# Ignore python virtual environments
+venv/
+.venv/
+
+# Ignore local environment files
+__pycache__/
+.env

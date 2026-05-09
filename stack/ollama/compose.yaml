@@ -1,0 +1,28 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      # Local metadata and keys
+      - ./data:/root/.ollama
+      # Centralized model storage
+      - ./models:/root/.ollama/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_FLASH_ATTENTION=1
+      # Change f16 to q8_0 or q4_0 to save massive amounts of VRAM
+      - OLLAMA_KV_CACHE_TYPE=q4_0
+      # Disable parallel requests to free up all memory for your single session
+      - OLLAMA_NUM_PARALLEL=1
+      # Explicitly force the 256k context window
+      - OLLAMA_CONTEXT_LENGTH=262144

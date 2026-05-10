@@ -3,6 +3,11 @@ stack/ollama/data/
 stack/ollama/models/
 *.log
 
+# Ignore Models and Large Data
+*.bin
+*.gguf
+*.onnx
+
 # Ignore Interrupted downloads
 *.partial
 *.partial-*

@@ -1,16 +1,8 @@
-# Ignore Ollama data and massive model blobs
-stack/ollama/data/
-stack/ollama/models/
+#Ignore Filetypes
 *.log
-
-# Ignore Models and Large Data
 *.bin
 *.gguf
 *.onnx
-
-# Ignore Interrupted downloads
-*.partial
-*.partial-*
 
 # Ignore python virtual environments
 venv/
@@ -19,3 +11,14 @@ venv/
 # Ignore local environment files
 __pycache__/
 .env
+
+# Ignore Interrupted downloads
+*.partial
+*.partial-*
+
+# Ignore Ollama data and massive model blobs
+stack/ollama/data/
+stack/ollama/models/
+
+# Ignore Open WebUI User generated Data
+stack/openwebui/data/

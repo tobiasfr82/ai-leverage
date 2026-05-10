@@ -1,0 +1,24 @@
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:cuda
+    container_name: open-webui
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    volumes:
+      - ./data:/app/backend/data
+    environment:
+      # Use host.docker.internal so it can "reach out" to Ollama on port 11434
+      - 'OLLAMA_BASE_URL=http://host.docker.internal:11434'
+      # If you've set up Docling:
+      - 'DOCLING_HTTP_BASE_URL=http://host.docker.internal:5001'
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Required for Linux to use host.docker.internal
+    # GPU Configuration
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

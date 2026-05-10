@@ -17,6 +17,13 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    # Logging options
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"  
     environment:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_FLASH_ATTENTION=1

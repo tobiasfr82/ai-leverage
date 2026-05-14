@@ -1,0 +1,6 @@
+# --- CORE MODELS (Layout & Parsing) ---
+docling-project/docling-models
+docling-project/docling-layout-heron
+
+# --- OCR ENGINES ---
+# These are usually baked in, but you can specify extras if needed

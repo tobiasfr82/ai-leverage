@@ -22,3 +22,7 @@ stack/ollama/models/
 
 # Ignore Open WebUI User generated Data
 stack/openwebui/data/
+
+# Ignore Docling User generated Data & models
+stack/docling/data/
+stack/docling/models/

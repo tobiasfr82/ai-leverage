@@ -11,12 +11,12 @@ services:
       - DOCLING_SERVE_OCR_ENGINE=easyocr
       - DOCLING_SERVE_MAX_SYNC_WAIT=60
       # Use the direct cache path
-      - HF_HOME=/models/huggingface
-      - DOCLING_ARTIFACTS_PATH=/models/huggingface/hub
-      - DOCLING_MODELS_CACHE=/models/huggingface/hub
+      - /models/huggingface
+      - DOCLING_ARTIFACTS_PATH=/models/hub
+      - DOCLING_MODELS_CACHE=/models/hub
     volumes:
       - ./data:/opt/app-root/src/data
-      - ./models:/models
+      - ../../models/hf_hub:/models
     deploy:
       resources:
         reservations:

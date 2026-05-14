@@ -16,6 +16,9 @@ __pycache__/
 *.partial
 *.partial-*
 
+# Ignore models
+models/
+
 # Ignore Ollama data and massive model blobs
 stack/ollama/data/
 stack/ollama/models/

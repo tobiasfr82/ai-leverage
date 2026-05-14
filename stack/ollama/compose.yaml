@@ -6,10 +6,10 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      # Local metadata and keys
+      # Local metadata, keys, and configs (Keep this in the stack folder)
       - ./data:/root/.ollama
-      # Centralized model storage
-      - ./models:/root/.ollama/models
+      # Centralized model storage (Point to the new absolute path)
+      - ../../models/ollama:/root/.ollama/models
     deploy:
       resources:
         reservations:

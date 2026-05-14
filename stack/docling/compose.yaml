@@ -1,0 +1,26 @@
+services:
+  docling:
+    image: quay.io/docling-project/docling-serve-cu128:latest
+    container_name: docling
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - DOCLING_SERVE_ENABLE_UI=1
+      - DOCLING_DEVICE=cuda
+      - DOCLING_SERVE_OCR_ENGINE=easyocr
+      - DOCLING_SERVE_MAX_SYNC_WAIT=60
+      # Use the direct cache path
+      - HF_HOME=/models/huggingface
+      - DOCLING_ARTIFACTS_PATH=/models/huggingface/hub
+      - DOCLING_MODELS_CACHE=/models/huggingface/hub
+    volumes:
+      - ./data:/opt/app-root/src/data
+      - ./models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

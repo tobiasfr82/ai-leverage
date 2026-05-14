@@ -1,7 +1,7 @@
 services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:cuda
-    container_name: open-webui
+    container_name: openwebui
     restart: unless-stopped
     ports:
       - "3000:8080"
@@ -22,3 +22,10 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    # Logging options
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"              

@@ -16,16 +16,11 @@ __pycache__/
 *.partial
 *.partial-*
 
-# Ignore models
+# Ignore AI Models
 models/
 
-# Ignore Ollama data and massive model blobs
-stack/ollama/data/
-stack/ollama/models/
-
-# Ignore Open WebUI User generated Data
+# Ignore Stack Data & model directories
+stack/ollama/data
 stack/openwebui/data/
-
-# Ignore Docling User generated Data & models
 stack/docling/data/
 stack/docling/models/

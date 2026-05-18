@@ -24,13 +24,16 @@ services:
 
     ports:
       - "8000:8000"
+#  --model LilaRest/gemma-4-31B-it-NVFP4-turbo
+#  --quantization auto
+
 
     command: >
-      --model LilaRest/gemma-4-31B-it-NVFP4-turbo
-      --quantization modelopt
-      --kv-cache-dtype fp8
-      --max-model-len 131072
-      --gpu-memory-utilization 0.955
+      --model ${HUGGINGFACE_MODEL}    
+      --max-model-len ${CONTEXT_SIZE}
+      --gpu-memory-utilization ${VRAM_LIMIT}
+      --kv-cache-dtype auto
+      --dtype auto      
       --enable-prefix-caching
 
     environment:

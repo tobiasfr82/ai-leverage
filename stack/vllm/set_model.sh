@@ -13,7 +13,7 @@ echo "=========================================="
 # Check if .env exists and get current model
 if [ -f "$ENV_FILE" ]; then
     # Extract value using grep/cut to avoid sourcing the whole file
-    CURRENT_MODEL=$(grep "^VLLM_MODEL=" "$ENV_FILE" | cut -d'"' -f2)
+    CURRENT_MODEL=$(grep "^HUGGINGFACE_MODEL=" "$ENV_FILE" | cut -d'"' -f2)
 fi
 
 # Display current status using a "Best Practice" header
@@ -55,10 +55,10 @@ select SELECTED_MODEL in "${models[@]}"; do
 
         # Surgical update logic
         touch "$ENV_FILE"
-        if grep -q "^VLLM_MODEL=" "$ENV_FILE"; then
-            sed -i "s|^VLLM_MODEL=.*|VLLM_MODEL=\"$SELECTED_MODEL\"|" "$ENV_FILE"
+        if grep -q "^HUGGINGFACE_MODEL=" "$ENV_FILE"; then
+            sed -i "s|^HUGGINGFACE_MODEL=.*|HUGGINGFACE_MODEL=\"$SELECTED_MODEL\"|" "$ENV_FILE"
         else
-            echo "VLLM_MODEL=\"$SELECTED_MODEL\"" >> "$ENV_FILE"
+            echo "HUGGINGFACE_MODEL=\"$SELECTED_MODEL\"" >> "$ENV_FILE"
         fi
         
         # --- 4. TERMINATION ---

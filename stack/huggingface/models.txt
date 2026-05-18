@@ -10,10 +10,10 @@
 GATED|LilaRest/gemma-4-31B-it-NVFP4-turbo
 
 # --- PRIMARY REASONER (High Accuracy) ---
-#GATED|google/gemma-4-31B-it
+GATED|google/gemma-4-31B-it
 
 # --- FAST INFERENCE (MoE Architecture) ---
-#GATED|google/gemma-4-26B-A4B-it
+GATED|google/gemma-4-26B-A4B-it
 
 # --- VISION & MOBILE (Small/Efficient) ---
-#GATED|google/gemma-4-E4B-it
+GATED|google/gemma-4-E4B-it

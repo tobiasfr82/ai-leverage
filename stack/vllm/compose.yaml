@@ -1,0 +1,46 @@
+services:
+  vllm:
+    # We use the cu130-nightly image to unlock Blackwell SM 12.0 / FP4 support
+    image: vllm/vllm-openai:cu130-nightly
+    container_name: vllm
+    restart: unless-stopped
+    
+    # Critical for Blackwell: Required for multi-processing and NCCL stability
+    ipc: host
+    
+    # 5090 Hardware Pass-through
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # Persistent Storage: Mapping your 8TB Samsung warehouse to the container's cache
+    volumes:
+      - ../../models/huggingface:/root/.cache/huggingface
+      - ./data:/app/data
+
+    ports:
+      - "8000:8000"
+
+    command: >
+      --model LilaRest/gemma-4-31B-it-NVFP4-turbo
+      --quantization modelopt
+      --kv-cache-dtype fp8
+      --max-model-len 131072
+      --gpu-memory-utilization 0.955
+      --enable-prefix-caching
+
+    environment:
+      # Logging level options
+      - VLLM_LOGGING_LEVEL=INFO
+      - CUDA_VISIBLE_DEVICES=0
+      # Required for NVFP4 Turbo stability in 2026 builds
+      - VLLM_USE_V2_MODEL_RUNNER=1 
+
+    # Advanced Memory Limits for the 5090
+    ulimits:
+      memlock: -1
+      stack: 67108864

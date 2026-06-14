@@ -1,0 +1,13 @@
+[project]
+name = "crawl4ai-stack"
+version = "0.1.0"
+description = "High-performance adaptive crawler for ai-leverage"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "crawl4ai>=0.8.0",
+    "pydantic>=2.0",
+]
+
+[tool.uv]
+package = false

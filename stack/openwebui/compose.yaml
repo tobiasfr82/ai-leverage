@@ -8,10 +8,10 @@ services:
     volumes:
       - ./data:/app/backend/data
     environment:
-      # Use host.docker.internal so it can "reach out" to Ollama on port 11434
+      # --- Core API Integrations ---
       - 'OLLAMA_BASE_URL=http://host.docker.internal:11434'
-      # If you've set up Docling:
       - 'DOCLING_HTTP_BASE_URL=http://host.docker.internal:5001'
+           
     extra_hosts:
       - "host.docker.internal:host-gateway" # Required for Linux to use host.docker.internal
     # GPU Configuration

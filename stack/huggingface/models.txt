@@ -1,5 +1,9 @@
 # ================= HUGGING FACE PUBLIC MODELS =================
 
+# Focused Coders
+
+Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8
+Qwen/Qwen3.6-27B-FP8
 
 # ================= HUGGING FACE GATED MODELS =================
 # You need a Hugging face access token added to the .env to be able to sync these.
@@ -17,3 +21,4 @@ GATED|google/gemma-4-26B-A4B-it
 
 # --- VISION & MOBILE (Small/Efficient) ---
 GATED|google/gemma-4-E4B-it
+

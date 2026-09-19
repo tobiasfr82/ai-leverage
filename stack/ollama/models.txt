@@ -56,11 +56,15 @@ translategemma:27b
 
 # --- IBM & GLM ---
 granite4.1:30b
+granite4.2:30b
 glm-4.7-flash:q4_K_M
 glm-4.7-flash:q8_0
 
 # --- LIQUID AI ---
 lfm2:24b
+
+# --- Meta ---
+muse-glimmer:30b
 
 # --- MICROSOFT PHI (Compact & Reasoning) ---
 phi4:latest
@@ -75,9 +79,15 @@ devstral-small-2:24b
 nemotron-3-nano:30b
 nemotron-cascade-2:30b
 nemotron3:33b
+nemotron-3.5-lightning:30b
 
 # --- OPENAI (Open-Weights) ---
 gpt-oss:20b
+
+# --- Ornith ---
+ornith:35b
+ornith-1.5:35b
+
 
 # --- QWEN SERIES (2026 Fleet) ---
 # Coding & Technical

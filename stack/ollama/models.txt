@@ -1,3 +1,49 @@
+
+# ==============================================================================
+# OLLAMA MODEL SYNC CONFIGURATION (models.txt)
+# ==============================================================================
+#
+# SYNTAX GUIDE & SOURCES:
+#
+# 1. Official Ollama Models (ollama.com/library)
+#    Syntax:  model:tag
+#    Example: deepseek-r1:32b
+#
+# 2. Community Registry Models (ollama.com/search)
+#    Syntax:  username/model-name:tag
+#    Example: wcamaralopes/bonsai-27b-Q4_K_M
+#
+# 3. Direct Hugging Face GGUF Imports (huggingface.co)
+#    Syntax:  hf.co/organization/repository:quantization
+#    Example: hf.co/prism-ml/Ternary-Bonsai-27B-gguf-Q2_g64
+#    How to find the correct link to use for ollama: https://huggingface.co/docs/hub/en/ollama
+#
+# CRITICAL NOTE:
+# Always explicitly specify the tag or quantization scheme (:tag or :quant).
+# Omitted tags will default to :latest in Ollama, which can cause 'ollama list'
+# string mismatches and trigger unnecessary re-downloads in your sync script.
+# ==============================================================================
+
+# --- Official Ollama Examples ---
+# deepseek-r1:32b
+# gemma2:27b
+
+# --- Community Registry Examples ---
+# wcamaralopes/bonsai-27b-Q4_K_M
+# defyma85/bonsai-27b-q1_0
+
+# --- Hugging Face Direct GGUF Examples ---
+# hf.co/prism-ml/Ternary-Bonsai-27B-gguf:Q2_g64
+# hf.co/bartowski/Llama-3.3-70B-Instruct-GGUF:Q4_K_M
+
+# ==============================================================================
+# NORMAL OLLAMA MODELS
+# ==============================================================================
+
+# --- Autonomous Agents ---
+# https://ollama.com/library/laguna-xs-2.1
+laguna-xs-2.1:q4_K_M 
+
 # --- DEEPSEEK (Reasoning & General) ---
 deepseek-ocr:3b
 deepseek-r1:32b
@@ -42,9 +88,25 @@ qwen3.5:27b
 qwen3.5:35b
 qwen3.6:27b
 qwen3.6:35b
+qwen3.8:27b
 
 # Vision & Specialized
 qwen3-vl:8b
 qwen3-vl:32b
 qwen3-embedding:8b
 qwq:32b
+
+# ==============================================================================
+# COMMUNITY OLLAMA MODELS
+# ==============================================================================
+
+# Ollama Community User who made bonsai from PrisML available
+wcamaralopes/bonsai-27b-Q4_K_M
+
+# ==============================================================================
+# HUGGINGFACE MODELS (USE BY OLLAMA)
+# ==============================================================================
+
+# PrismML have a new way of training models allowing for much smaller vram footprint.
+hf.co/prism-ml/Ternary-Bonsai-27B-gguf:Q2_0
+

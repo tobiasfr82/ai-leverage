@@ -4,7 +4,9 @@ services:
     container_name: ollama
     restart: unless-stopped
     ports:
-      - "11434:11434"
+# Changed from this to be more specific/security oriented
+#      - "11434:11434"
+       - "127.0.0.1:11434:11434"
     volumes:
       # Local metadata, keys, and configs (Keep this in the stack folder)
       - ./data:/root/.ollama
@@ -25,6 +27,7 @@ services:
         max-file: "5"
         compress: "true"  
     environment:
+      - OLLAMA_ORIGINS=vscode-webview://*,http://localhost*,http://127.0.0.1*    
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_FLASH_ATTENTION=1
       # Change f16 to q8_0 or q4_0 to save massive amounts of VRAM

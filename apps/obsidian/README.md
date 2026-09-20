@@ -13,7 +13,7 @@ Same pattern as `apps/opencode`: run the script for your OS, re-run it safely an
 | `uninstall.ps1` | Windows        | `winget uninstall`                     | `choco uninstall`                     |
 
 Flatpak is the default on Linux because it is distro-agnostic and sandboxed. The Flathub
-remote is added with `--if-not-exists`, so nothing is duplicated on repeat runs.
+remote is added with `--if-not-exists`, so nothing is duplicated on repeat runs. 
 
 **The fallback can engage on its own.** If `flatpak` is not installed, `install.sh` uses the
 `.deb` path automatically, exactly as if `--deb` had been passed — that install is

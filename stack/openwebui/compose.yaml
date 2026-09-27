@@ -13,11 +13,16 @@ services:
       # --- Core API Integrations ---
       # Only used on first start. After that Open WebUI keeps its own copy in
       # its database; change these under Admin Panel > Settings instead.
+      # Chat models
       - 'OLLAMA_BASE_URL=http://ollama:11434'
+      # Reading uploaded documents
+      - 'CONTENT_EXTRACTION_ENGINE=docling'
       - 'DOCLING_SERVER_URL=http://docling:5001'
-           
-    extra_hosts:
-      - "host.docker.internal:host-gateway" # Required for Linux to use host.docker.internal
+      # Document search (model is listed in stack/ollama/models.txt)
+      - 'RAG_EMBEDDING_ENGINE=ollama'
+      - 'RAG_EMBEDDING_MODEL=qwen3-embedding:8b'
+      - 'RAG_OLLAMA_BASE_URL=http://ollama:11434'
+
     # GPU Configuration
     deploy:
       resources:
@@ -33,7 +38,8 @@ services:
         max-size: "10m"
         max-file: "5"
 
-# Shared "ai-leverage" network: reaches Ollama and Docling by name.
+# Shared "ai-leverage" network: reaches Ollama and Docling by name, so no
+# host.docker.internal is needed.
 # Created by src/bash/docker-create-network.sh.
 networks:
   default:

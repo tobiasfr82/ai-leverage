@@ -4,38 +4,31 @@ services:
     container_name: ollama
     restart: unless-stopped
     ports:
-# Changed from this to be more specific/security oriented
-#      - "11434:11434"
-       - "127.0.0.1:11434:11434"
+      # This PC only. Other containers use http://ollama:11434 over the shared
+      # network. OLLAMA_PORT in .env changes the port on this PC.
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
     volumes:
-      # Local metadata, keys, and configs (Keep this in the stack folder)
+      # Keys and settings stay with the service; the models themselves go to
+      # the shared models/ folder at the top of the repo.
       - ./data:/root/.ollama
-      # Centralized model storage (Point to the new absolute path)
       - ../../models/ollama:/root/.ollama/models
+    # Optional settings for this machine, such as context size. Without them
+    # Ollama picks values that suit your GPU. See .env.template.
+    env_file:
+      - path: .env
+        required: false
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: all
               capabilities: [gpu]
-    # Logging options
     logging:
-      driver: "json-file"
+      driver: json-file
       options:
         max-size: "10m"
         max-file: "5"
-        compress: "true"  
-    environment:
-      - OLLAMA_ORIGINS=vscode-webview://*,http://localhost*,http://127.0.0.1*    
-      - OLLAMA_HOST=0.0.0.0
-      - OLLAMA_FLASH_ATTENTION=1
-      # Change f16 to q8_0 or q4_0 to save massive amounts of VRAM
-      - OLLAMA_KV_CACHE_TYPE=q4_0
-      # Disable parallel requests to free up all memory for your single session
-      - OLLAMA_NUM_PARALLEL=1
-      # Explicitly force the 256k context window
-      - OLLAMA_CONTEXT_LENGTH=262144
 
 # Shared "ai-leverage" network: other containers reach this service as
 # http://ollama:11434. Created by src/bash/docker-create-network.sh.

@@ -7,11 +7,10 @@
 FROM qwen3-coder:30b
 
 # 2. DETERMINISTIC RUNTIME CONSTRAINTS
+# Stop tokens and the chat template come from the base model.
 PARAMETER temperature 0.1
 PARAMETER num_ctx 32768
 PARAMETER top_p 0.9
-PARAMETER stop "<|endoftext|>"
-PARAMETER stop "<|im_end|>"
 
 # 3. UNIVERSAL PROTOCOL DRIVER
 SYSTEM """

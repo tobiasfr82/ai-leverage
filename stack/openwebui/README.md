@@ -48,11 +48,63 @@ ls -lh data/webui.db*    # the copy must not be 0 bytes
 
 To restore, stop Open WebUI and copy the backup back over `data/webui.db`.
 
-## Opening it to other devices
+## Opening it to your home network
 
-By default only this PC can open it. To let a laptop on your home network in, copy
-`.env.template` to `.env`, set `OPENWEBUI_BIND_ADDRESS=0.0.0.0`, and recreate the container.
-`.env` is git-ignored, so this choice stays on your machine.
+By default only this PC can open Open WebUI. To use it from a laptop or phone on the same
+network, follow these steps. Only Open WebUI gets opened: Ollama, vLLM and Docling have no
+login, so they stay private and Open WebUI reaches them over the shared network.
+
+### 1. Check who can get in
+
+Everyone on your network will be able to see the login page. In **Admin Panel → Settings →
+General**, make sure that:
+
+- **new sign-ups are off**, otherwise anyone on your wifi can create an account
+- **the default role for new users is "pending"**, so a new account waits for your approval
+
+Also check that **Admin Panel → Users** only lists people you know, and that your admin
+password is strong.
+
+### 2. Open the door
+
+```bash
+cd stack/openwebui
+cp .env.template .env        # skip if you already have a .env
+```
+
+In `.env`, set `OPENWEBUI_BIND_ADDRESS=0.0.0.0`. Then recreate the container, because
+Docker only reads `.env` when it creates one:
+
+```bash
+sudo docker compose up -d --force-recreate
+```
+
+`.env` is git-ignored, so this choice stays on your machine. Anyone who clones the repo
+still gets "this PC only".
+
+### 3. Connect from the other device
+
+Open `http://<pc-name>.local:3000`, where `<pc-name>` is what `hostname` prints on this PC.
+If that name doesn't load, use the PC's network address instead. On this PC, run:
+
+```bash
+ip -4 route get 1.1.1.1 | grep -o 'src [0-9.]*'
+```
+
+and open `http://<that-address>:3000` on the other device.
+
+### 4. Confirm the engines stay private
+
+From the other device, `http://<pc-name>.local:11434` (Ollama) and
+`http://<pc-name>.local:5001/ui` (Docling) must **not** load.
+
+### Good to know
+
+- **Plain http is fine inside your home, not over the internet.** Never forward port 3000
+  on your router. For access from outside, use a private network such as Tailscale, or a
+  tunnel with its own login in front, such as Cloudflare Tunnel with Access.
+- **To close it again,** set `OPENWEBUI_BIND_ADDRESS=127.0.0.1` (or delete `.env`) and
+  recreate the container.
 
 ## Known quirk: logged out after recreating
 

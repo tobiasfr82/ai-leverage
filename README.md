@@ -29,9 +29,10 @@ each other by name over it, and by default nothing is reachable from outside thi
 
 - **Every port is published on `127.0.0.1` (this PC only).** Docker's published ports bypass
   host firewalls such as `ufw`, so this binding is what keeps them private.
-- **Only services with their own login can be opened to your network.** For Open WebUI, set
-  `OPENWEBUI_BIND_ADDRESS=0.0.0.0` in `stack/openwebui/.env` (see its `.env.template`) and
-  recreate the container. Ollama, vLLM and Docling have no login, so they stay on this PC.
+- **Only services with their own login can be opened to your network.** For Open WebUI, see
+  [Opening it to your home network](stack/openwebui/README.md#opening-it-to-your-home-network):
+  a quick check of the account settings, then one setting in a local `.env`. Ollama, vLLM
+  and Docling have no login, so they stay on this PC.
 - **Personal settings stay out of git.** IP addresses, domains and tokens belong in a `.env`
   file next to the service's `compose.yaml`; `.env` files are git-ignored.
 - **After editing a `compose.yaml`, recreate the container** (`manage.sh` → Rebuild, or

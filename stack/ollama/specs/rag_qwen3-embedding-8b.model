@@ -1,0 +1,11 @@
+# ==============================================================================
+# DOCUMENT SEARCH MODEL FOR OPEN WEBUI
+# FILE: rag_qwen3-embedding-8b.model  ->  builds "rag/qwen3-embedding:8b"
+# ==============================================================================
+# Same model and same search results as qwen3-embedding:8b, with a smaller
+# window. Open WebUI only sends it short document snippets, and the smaller
+# window lets it share the GPU with a chat model instead of pushing it out.
+
+FROM qwen3-embedding:8b
+
+PARAMETER num_ctx 8192

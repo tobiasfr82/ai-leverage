@@ -1,44 +1,41 @@
 services:
   open-webui:
-    image: ghcr.io/open-webui/open-webui:cuda
+    # The standard image, without a GPU: the heavy work (chat, embeddings,
+    # reading documents) happens in Ollama, vLLM and Docling.
+    image: ghcr.io/open-webui/open-webui:main
     container_name: openwebui
     restart: unless-stopped
     ports:
       # This PC only by default. To let other devices on your network in,
       # set OPENWEBUI_BIND_ADDRESS in a local .env file (see .env.template).
-      - "${OPENWEBUI_BIND_ADDRESS:-127.0.0.1}:3000:8080"
+      - "${OPENWEBUI_BIND_ADDRESS:-127.0.0.1}:${OPENWEBUI_PORT:-3000}:8080"
     volumes:
       - ./data:/app/backend/data
     environment:
       # --- Core API Integrations ---
       # Only used on first start. After that Open WebUI keeps its own copy in
       # its database; change these under Admin Panel > Settings instead.
-      # Chat models
+      # Chat models: Ollama, plus vLLM when it runs
       - 'OLLAMA_BASE_URL=http://ollama:11434'
+      - 'OPENAI_API_BASE_URL=http://vllm:8000/v1'
       # Reading uploaded documents
       - 'CONTENT_EXTRACTION_ENGINE=docling'
       - 'DOCLING_SERVER_URL=http://docling:5001'
-      # Document search (model is listed in stack/ollama/models.txt)
+      # Document search (built from stack/ollama/specs by ollama -> sync_models)
       - 'RAG_EMBEDDING_ENGINE=ollama'
-      - 'RAG_EMBEDDING_MODEL=qwen3-embedding:8b'
+      - 'RAG_EMBEDDING_MODEL=rag/qwen3-embedding:8b'
       - 'RAG_OLLAMA_BASE_URL=http://ollama:11434'
-
-    # GPU Configuration
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    # Logging options
+    # Optional settings for this machine. See .env.template.
+    env_file:
+      - path: .env
+        required: false
     logging:
-      driver: "json-file"
+      driver: json-file
       options:
         max-size: "10m"
         max-file: "5"
 
-# Shared "ai-leverage" network: reaches Ollama and Docling by name, so no
+# Shared "ai-leverage" network: reaches Ollama, vLLM and Docling by name, so no
 # host.docker.internal is needed.
 # Created by src/bash/docker-create-network.sh.
 networks:

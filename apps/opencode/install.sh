@@ -4,6 +4,7 @@
 # 1. Setup Variables
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_FILE="$REPO_DIR/install.log"
+BIN_PATH="$HOME/.opencode/bin/opencode"
 
 clear
 echo "●  Initializing paths:"
@@ -19,30 +20,40 @@ if ! command -v curl &> /dev/null; then
 fi
 
 # 2.5 Check if already installed
-if command -v opencode &> /dev/null; then
+# The installer puts it in ~/.opencode/bin, which only reaches PATH in a new
+# terminal, so look there too; otherwise a second run right after installing
+# would install it again.
+if command -v opencode &> /dev/null || [ -x "$BIN_PATH" ]; then
     echo "●  ✓ OpenCode is already installed. Skipping download."
 else
     # 3. Download the Installer Safely
     echo "●  Downloading official OpenCode installer..."
-    curl -fsSL https://opencode.ai/install > /tmp/opencode_install.sh
+    INSTALLER="$(mktemp)"
+    trap 'rm -f "$INSTALLER"' EXIT
+    if ! curl -fsSL https://opencode.ai/install -o "$INSTALLER"; then
+        echo "└── ✗ Could not download the installer."
+        exit 1
+    fi
 
     # 4. Execute, display live output, AND log it
     echo "●  Running installer:"
     echo "│" # Visual spacer
-    
-    bash /tmp/opencode_install.sh 2>&1 | tee "$LOG_FILE"
-    
+
+    bash "$INSTALLER" 2>&1 | tee "$LOG_FILE"
+    # Saved right away: PIPESTATUS[0] is the installer's exit code, not tee's,
+    # and the next command would overwrite it
+    STATUS=${PIPESTATUS[0]}
+
     echo "│" # Visual spacer
 
     # 5. Verify Success
-    # pipestatus[0] gets the exit code of the bash script, ignoring the exit code of 'tee'
-    if [ ${PIPESTATUS[0]} -eq 0 ]; then
+    if [ "$STATUS" -eq 0 ]; then
         echo "●  ✓ OpenCode binary installed successfully."
-        rm /tmp/opencode_install.sh
+        echo "●  Open a new terminal to use the 'opencode' command."
     else
         echo "└── ✗ Installation failed. Please check $LOG_FILE for details."
         exit 1
     fi
 fi
 
-echo "└── Step 1 Complete."
+echo "└── Installation complete."

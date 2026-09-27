@@ -24,8 +24,6 @@ __pycache__/
 # Ignore AI Models
 models/
 
-# Ignore Stack Data & model directories
-stack/ollama/data
-stack/openwebui/data/
-stack/docling/data/
-stack/docling/models/
+# Ignore each service's own data (settings, chats, uploads, keys)
+stack/*/data/
+stack/*/output/

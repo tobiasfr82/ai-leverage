@@ -1,4 +1,6 @@
 #!/bin/bash
+# ai-leverage/src/bash/docker-list-ports.sh
+# Lists every container and the ports it publishes. Used by manage.sh.
 clear
 
 echo -e "\033[1mAI LEVERAGE\033[0m"
@@ -12,7 +14,7 @@ echo "Authentication required to access Docker daemon..."
 if ! sudo docker info > /dev/null 2>&1; then
     echo -e "\n\033[0;31mError: Cannot connect to Docker daemon.\033[0m"
     echo "Ensure Docker is running and check sudo permissions."
-    exec bash
+    exit 1
 fi
 
 echo -e "\n\033[1;36mFetching all container port mappings...\033[0m"
@@ -23,7 +25,7 @@ PORT_TABLE=$(sudo docker ps -a --format "table {{.Names}}\t{{.Ports}}" 2>/dev/nu
 
 if [ -z "$PORT_TABLE" ]; then
     echo -e "\n\033[0;31mError: Failed to retrieve container information.\033[0m"
-    exec bash
+    exit 1
 fi
 
 echo "$PORT_TABLE"
@@ -36,5 +38,4 @@ if echo "$PORT_TABLE" | grep -q "<nil>"; then
 fi
 
 echo -e "\n--------------------------------------------"
-echo "Port usage list complete. Window will remain open for review."
-exec bash
+echo "Port usage list complete."

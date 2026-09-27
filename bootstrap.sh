@@ -1,49 +1,25 @@
 #!/bin/bash
-set -e
+# ai-leverage/bootstrap.sh
+# One-time setup for this machine. Installs what the repo needs and leaves
+# anything already in place alone, so it is safe to run again.
+#   1. uv - runs the Python tools, and fetches the Python version each one needs
+#   2. Docker with the Compose plugin - runs the services in stack/
+#   3. NVIDIA Container Toolkit - lets Docker hand the GPU to a service
+#   4. The shared "ai-leverage" Docker network
+# Afterwards, start the services with ./manage.sh.
 
-# --- 1. Check/Install Python 3.10 ---
-if ! command -v python3.10 &> /dev/null; then
-    echo "Python 3.10 not found. It's needed for some functionality in AI-Leverage to function."
-    read -p "Do you want to install Python 3.10? (y/n): " -n 1 -r
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Distribution details (ID, ID_LIKE, VERSION_CODENAME...), used to pick package sources
+[ -f /etc/os-release ] && . /etc/os-release
+
+ask() {
+    read -p "$1 (y/N): " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        # Check if we're on Pop! OS (based on Ubuntu) or Ubuntu/Debian directly
-        if lsb_release -i 2>/dev/null | grep -qi "Pop" || command -v apt &> /dev/null; then
-            echo "Detected Debian/Ubuntu/Pop! OS, installing Python 3.10 via Deadsnakes PPA..."
-            sudo apt update
-            sudo apt install -y software-properties-common
-            sudo add-apt-repository -y ppa:deadsnakes/ppa
-            sudo apt update
-            sudo apt install -y python3.10 python3.10-dev python3.10-venv
-        # Check if we're on CentOS/RHEL/Fedora
-        elif command -v yum &> /dev/null; then
-            echo "Detected RHEL/CentOS/Fedora, installing Python 3.10..."
-            sudo yum install -y yum-utils
-            sudo yum install -y python3.10 python3.10-devel python3.10-libs
-        # Check if we're on Arch Linux
-        elif command -v pacman &> /dev/null; then
-            echo "Detected Arch Linux. Python 3.10 must be built from the Arch User Repository (AUR)."
-            if command -v yay &> /dev/null; then
-                yay -S --noconfirm python310
-            elif command -v paru &> /dev/null; then
-                paru -S --noconfirm python310
-            else
-                echo "AUR helper (yay/paru) not found. Please install the 'python310' package manually from the AUR."
-                exit 1
-            fi
-        else
-            echo "Unsupported distribution. Please install Python 3.10 manually."
-            exit 1
-        fi
-    else
-        echo "Python 3.10 installation skipped. Please install manually."
-        exit 1
-    fi
-else
-    echo "Python 3.10 is already installed."
-fi
+    [[ $REPLY =~ ^[Yy]$ ]]
+}
 
-# --- 2. Check/Install UV ---
+# --- 1. Check/Install UV ---
 if ! command -v uv &> /dev/null; then
     echo "UV not found. Installing now..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -56,71 +32,107 @@ else
     echo "UV is already installed."
 fi
 
-# --- 3. Check/Install Docker ---
-if ! command -v docker &> /dev/null; then
-    echo "Docker not found."
-    read -p "Do you want to install Docker? (y/n): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        # Check if we're on Pop! OS or Ubuntu/Debian
-        if lsb_release -i 2>/dev/null | grep -qi "Pop" || command -v apt &> /dev/null; then
-            echo "Detected Debian/Ubuntu/Pop! OS, installing official Docker CE..."
-            sudo apt update
-            sudo apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
-            
-            # Use modern keyring location instead of deprecated apt-key/trusted.gpg.d
-            sudo mkdir -p /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-            
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-            
-            sudo apt update
-            sudo apt install -y docker-ce docker-ce-cli containerd.io
-            sudo usermod -aG docker "$USER"
-            echo "User added to the docker group. You may need to log out and log back in for changes to apply."
-        # Check if we're on CentOS/RHEL/Fedora
-        elif command -v yum &> /dev/null; then
-            echo "Detected RHEL/CentOS/Fedora, installing Docker CE..."
-            sudo yum install -y yum-utils
-            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-            sudo yum install -y docker-ce docker-ce-cli containerd.io
-            sudo systemctl start docker
-            sudo systemctl enable docker
-            sudo usermod -aG docker "$USER"
-        # Check if we're on Arch Linux
-        elif command -v pacman &> /dev/null; then
-            echo "Detected Arch Linux, installing Docker..."
-            sudo pacman -S --noconfirm docker
-            sudo usermod -aG docker "$USER"
-            sudo systemctl enable docker --now
-        else
-            echo "Unsupported distribution. Please install Docker manually."
-            exit 1
-        fi
+# --- 2. Check/Install Docker ---
+install_docker() {
+    if command -v apt-get &> /dev/null; then
+        # Docker's own repository. Ubuntu-based systems (Pop!_OS, Mint...) use the
+        # packages for the Ubuntu release they are built on.
+        local distro codename
+        case " ${ID:-} ${ID_LIKE:-} " in
+            *" ubuntu "*) distro=ubuntu; codename="${UBUNTU_CODENAME:-$VERSION_CODENAME}" ;;
+            *" debian "*) distro=debian; codename="$VERSION_CODENAME" ;;
+            *) return 1 ;;
+        esac
+        echo "Detected $distro ($codename), installing Docker from Docker's repository..."
+        sudo apt-get update
+        sudo apt-get install -y ca-certificates curl gnupg
+        sudo install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL "https://download.docker.com/linux/$distro/gpg" | sudo gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$distro $codename stable" \
+            | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    elif command -v pacman &> /dev/null; then
+        echo "Detected Arch Linux, installing Docker..."
+        sudo pacman -S --noconfirm docker docker-compose
+    elif command -v dnf &> /dev/null || command -v yum &> /dev/null; then
+        # Docker's install script covers Fedora, RHEL and CentOS
+        echo "Detected Fedora/RHEL/CentOS, installing Docker with Docker's install script..."
+        curl -fsSL https://get.docker.com | sudo sh
     else
-        echo "Docker installation skipped."
+        return 1
+    fi
+    sudo systemctl enable --now docker
+}
+
+if command -v docker &> /dev/null; then
+    echo "Docker is already installed."
+elif ask "Docker not found. Do you want to install Docker?"; then
+    if ! install_docker; then
+        echo "Could not install Docker on this system. Install it by hand:"
+        echo "  https://docs.docker.com/engine/install/"
+        exit 1
     fi
 else
-    echo "Docker is already installed."
+    echo "Docker installation skipped."
+fi
+
+# Every service is started with 'docker compose', which is a separate package
+if command -v docker &> /dev/null && ! docker compose version &> /dev/null; then
+    echo "Docker is installed, but the Compose plugin is missing. Install the package"
+    echo "'docker-compose-plugin' (Docker's repository) or 'docker-compose-v2' (Ubuntu's"
+    echo "own docker.io), then run this script again."
+fi
+
+# --- 3. Check/Install the NVIDIA Container Toolkit ---
+# Ollama, vLLM and Docling run on an NVIDIA GPU. The toolkit is what lets Docker
+# hand the GPU to them; without it they refuse to start.
+install_nvidia_toolkit() {
+    if command -v apt-get &> /dev/null; then
+        curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+            | sudo gpg --dearmor --yes -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+        curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+            | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+            | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y nvidia-container-toolkit
+    elif command -v pacman &> /dev/null; then
+        sudo pacman -S --noconfirm nvidia-container-toolkit
+    elif command -v dnf &> /dev/null; then
+        curl -fsSL https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo \
+            | sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo > /dev/null
+        sudo dnf install -y nvidia-container-toolkit
+    else
+        return 1
+    fi
+    sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker
+}
+
+if ! command -v nvidia-smi &> /dev/null; then
+    echo "No NVIDIA driver found (nvidia-smi is missing). Ollama, vLLM and Docling need"
+    echo "an NVIDIA GPU. Install the driver, reboot, and run this script again."
+elif command -v nvidia-ctk &> /dev/null; then
+    echo "NVIDIA Container Toolkit is already installed."
+elif ! command -v docker &> /dev/null; then
+    echo "Docker not found. Skipping the NVIDIA Container Toolkit."
+elif ask "NVIDIA Container Toolkit not found. Docker needs it to use the GPU. Install it?"; then
+    if ! install_nvidia_toolkit; then
+        echo "Could not install the NVIDIA Container Toolkit. Install it by hand:"
+        echo "  https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html"
+        exit 1
+    fi
+else
+    echo "NVIDIA Container Toolkit installation skipped."
 fi
 
 # --- 4. Create the shared Docker network ---
 # Every service in stack/ joins this network so they can reach each other by name.
 # Not fatal: manage.sh creates it too, the first time you start a service.
 if command -v docker &> /dev/null; then
-    "$(dirname "${BASH_SOURCE[0]}")/src/bash/docker-create-network.sh" \
+    "$REPO_DIR/src/bash/docker-create-network.sh" \
         || echo "Could not create the shared Docker network now; manage.sh will try again later."
 else
     echo "Docker not found. Skipping the shared Docker network."
 fi
 
-# --- 5. Initialize Crawl4AI Stack ---
-#echo "Initializing Crawl4AI Stack..."
-#if [ -d "stack/crawl4ai" ]; then
-#    cd stack/crawl4ai
-#    chmod +x setup.sh
-#    ./setup.sh
-#    cd ../..
-#fi
-
-echo "Environment bootstrap complete!"
+echo "Environment bootstrap complete! Start the services with ./manage.sh"

@@ -1,0 +1,14 @@
+# ==============================================================================
+# AGENT MODEL: qwen3.6:35b WITH A 256K WINDOW
+# FILE: agent_qwen3.6-35b.model  ->  builds "agent/qwen3.6:35b"
+# ==============================================================================
+# For agents such as Hermes Agent (needs at least 64k) or VS Code's agent mode,
+# when a task needs more than the 128k agent models hold. Qwen3.6 keeps its
+# conversation memory small, so the full 256k fits on a 32 GB card.
+# Agents talk to Ollama's OpenAI-style /v1 address, which cannot ask for a
+# context size, so the size is set here. Point the agent at "agent/qwen3.6:35b"
+# and tell it the context is 262144 tokens.
+
+FROM qwen3.6:35b
+
+PARAMETER num_ctx 262144

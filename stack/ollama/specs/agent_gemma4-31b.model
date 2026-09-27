@@ -1,0 +1,12 @@
+# ==============================================================================
+# AGENT MODEL: gemma4:31b WITH A 128K WINDOW
+# FILE: agent_gemma4-31b.model  ->  builds "agent/gemma4:31b"
+# ==============================================================================
+# For agents such as Hermes Agent (needs at least 64k) or VS Code's agent mode.
+# They talk to Ollama's OpenAI-style /v1 address, which cannot ask for a context
+# size, so the size is set here. Point the agent at "agent/gemma4:31b" and tell it the
+# context is 131072 tokens.
+
+FROM gemma4:31b
+
+PARAMETER num_ctx 131072

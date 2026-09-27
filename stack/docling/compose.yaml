@@ -1,31 +1,32 @@
 services:
   docling:
+    # The image ships with the models it needs, so there is nothing to download.
     image: quay.io/docling-project/docling-serve-cu128:latest
     container_name: docling
     restart: unless-stopped
     ports:
-      # This PC only (web UI at http://localhost:5001/ui). Other containers
-      # use http://docling:5001 over the shared network.
-      - "127.0.0.1:5001:5001"
+      # This PC only (web UI at http://localhost:5001/ui). Other containers use
+      # http://docling:5001 over the shared network. DOCLING_PORT in .env
+      # changes the port on this PC.
+      - "127.0.0.1:${DOCLING_PORT:-5001}:5001"
     environment:
       - DOCLING_SERVE_ENABLE_UI=1
-      - DOCLING_DEVICE=cuda
-      - DOCLING_SERVE_OCR_ENGINE=easyocr
-      - DOCLING_SERVE_MAX_SYNC_WAIT=60
-      # Use the direct cache path
-      - /models/huggingface
-      - DOCLING_ARTIFACTS_PATH=/models/hub
-      - DOCLING_MODELS_CACHE=/models/hub
-    volumes:
-      - ./data:/opt/app-root/src/data
-      - ../../models/hf_hub:/models
+    # Optional settings for this machine. See .env.template.
+    env_file:
+      - path: .env
+        required: false
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: all
               capabilities: [gpu]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 # Shared "ai-leverage" network: other containers reach this service as
 # http://docling:5001. Created by src/bash/docker-create-network.sh.

@@ -47,3 +47,10 @@ services:
     ulimits:
       memlock: -1
       stack: 67108864
+
+# Shared "ai-leverage" network: other containers reach this service as
+# http://vllm:8000/v1. Created by src/bash/docker-create-network.sh.
+networks:
+  default:
+    name: ai-leverage
+    external: true

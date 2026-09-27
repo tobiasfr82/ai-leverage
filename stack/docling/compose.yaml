@@ -24,3 +24,10 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+
+# Shared "ai-leverage" network: other containers reach this service as
+# http://docling:5001. Created by src/bash/docker-create-network.sh.
+networks:
+  default:
+    name: ai-leverage
+    external: true

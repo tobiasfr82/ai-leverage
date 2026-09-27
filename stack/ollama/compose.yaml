@@ -36,3 +36,10 @@ services:
       - OLLAMA_NUM_PARALLEL=1
       # Explicitly force the 256k context window
       - OLLAMA_CONTEXT_LENGTH=262144
+
+# Shared "ai-leverage" network: other containers reach this service as
+# http://ollama:11434. Created by src/bash/docker-create-network.sh.
+networks:
+  default:
+    name: ai-leverage
+    external: true

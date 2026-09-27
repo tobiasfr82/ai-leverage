@@ -104,7 +104,17 @@ else
     echo "Docker is already installed."
 fi
 
-# --- 4. Initialize Crawl4AI Stack ---
+# --- 4. Create the shared Docker network ---
+# Every service in stack/ joins this network so they can reach each other by name.
+# Not fatal: manage.sh creates it too, the first time you start a service.
+if command -v docker &> /dev/null; then
+    "$(dirname "${BASH_SOURCE[0]}")/src/bash/docker-create-network.sh" \
+        || echo "Could not create the shared Docker network now; manage.sh will try again later."
+else
+    echo "Docker not found. Skipping the shared Docker network."
+fi
+
+# --- 5. Initialize Crawl4AI Stack ---
 #echo "Initializing Crawl4AI Stack..."
 #if [ -d "stack/crawl4ai" ]; then
 #    cd stack/crawl4ai

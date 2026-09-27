@@ -4,16 +4,25 @@ services:
     container_name: openwebui
     restart: unless-stopped
     ports:
-      - "3000:8080"
+      # This PC only by default. To let other devices on your network in,
+      # set OPENWEBUI_BIND_ADDRESS in a local .env file (see .env.template).
+      - "${OPENWEBUI_BIND_ADDRESS:-127.0.0.1}:3000:8080"
     volumes:
       - ./data:/app/backend/data
     environment:
       # --- Core API Integrations ---
-      - 'OLLAMA_BASE_URL=http://host.docker.internal:11434'
-      - 'DOCLING_HTTP_BASE_URL=http://host.docker.internal:5001'
-           
-    extra_hosts:
-      - "host.docker.internal:host-gateway" # Required for Linux to use host.docker.internal
+      # Only used on first start. After that Open WebUI keeps its own copy in
+      # its database; change these under Admin Panel > Settings instead.
+      # Chat models
+      - 'OLLAMA_BASE_URL=http://ollama:11434'
+      # Reading uploaded documents
+      - 'CONTENT_EXTRACTION_ENGINE=docling'
+      - 'DOCLING_SERVER_URL=http://docling:5001'
+      # Document search (model is listed in stack/ollama/models.txt)
+      - 'RAG_EMBEDDING_ENGINE=ollama'
+      - 'RAG_EMBEDDING_MODEL=qwen3-embedding:8b'
+      - 'RAG_OLLAMA_BASE_URL=http://ollama:11434'
+
     # GPU Configuration
     deploy:
       resources:
@@ -28,3 +37,11 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
+
+# Shared "ai-leverage" network: reaches Ollama and Docling by name, so no
+# host.docker.internal is needed.
+# Created by src/bash/docker-create-network.sh.
+networks:
+  default:
+    name: ai-leverage
+    external: true

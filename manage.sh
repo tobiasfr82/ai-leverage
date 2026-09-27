@@ -57,6 +57,14 @@ echo -e "\n${GREEN}Complete!${NC}"
 read -n 1 -s -r -p "Press any key to return..."
 }
   
+ensure_network() {
+# Services join the shared "ai-leverage" network, which must exist before they start
+if ! "$SCRIPT_DIR/docker-create-network.sh"; then
+  read -n 1 -s -r -p "Press any key to return..."
+  return 1
+fi
+}
+  
 service_menu() {
 local path=$1
 local name=$(basename "$path")
@@ -79,19 +87,19 @@ while true; do
   read -p "Selection: " choice
   
   case $choice in
-  1) run_cmd "$path" "sudo docker compose up -d" ;;
+  1) ensure_network && run_cmd "$path" "sudo docker compose up -d" ;;
   2) run_cmd "$path" "sudo docker compose stop" ;;
-  3) run_cmd "$path" "sudo docker compose restart" ;;
+  3) ensure_network && run_cmd "$path" "sudo docker compose restart" ;;
   4)
     echo -e "${CYAN}Starting Update & Cleanup...${NC}"
     # Pulls new images, recreates the container, then wipes the old dangling layers
-    run_cmd "$path" "sudo docker compose pull && sudo docker compose up -d && sudo docker image prune -f"
+    ensure_network && run_cmd "$path" "sudo docker compose pull && sudo docker compose up -d && sudo docker image prune -f"
                 ;;
   5)
     echo -e "\n${RED}${BOLD}REBUILDING:${NC} This deletes and recreates the container."
     read -p "Continue? (y/N): " confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
-      run_cmd "$path" "sudo docker compose down && sudo docker compose up -d --build"
+      ensure_network && run_cmd "$path" "sudo docker compose down && sudo docker compose up -d --build"
     else
       echo -e "${CYAN}Rebuild cancelled.${NC}"
       sleep 1

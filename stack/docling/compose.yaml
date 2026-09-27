@@ -4,7 +4,9 @@ services:
     container_name: docling
     restart: unless-stopped
     ports:
-      - "5001:5001"
+      # This PC only (web UI at http://localhost:5001/ui). Other containers
+      # use http://docling:5001 over the shared network.
+      - "127.0.0.1:5001:5001"
     environment:
       - DOCLING_SERVE_ENABLE_UI=1
       - DOCLING_DEVICE=cuda

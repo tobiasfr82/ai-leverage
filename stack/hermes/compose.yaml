@@ -1,0 +1,51 @@
+services:
+  hermes:
+    # Release builds. "main" is the daily development build.
+    image: nousresearch/hermes-agent:latest
+    container_name: hermes
+    restart: unless-stopped
+    # The gateway keeps Hermes running in the background and serves the
+    # OpenAI-style API that Open WebUI talks to.
+    command: ["gateway", "run"]
+    ports:
+      # This PC only. Open WebUI uses http://hermes:8642/v1 over the shared
+      # network. HERMES_PORT in .env changes the port on this PC.
+      - "127.0.0.1:${HERMES_PORT:-8642}:8642"
+    volumes:
+      # Hermes's own settings, memory, skills and chat history
+      - ./data:/opt/data
+      # The only folder of yours Hermes can see: /workspace inside the
+      # container. Point HERMES_WORKSPACE in .env at your notes.
+      - ${HERMES_WORKSPACE:-./data/workspace}:/workspace
+      # Hermes copies this file to data/config.yaml on its very first start
+      - ./first-start-config.yaml:/opt/hermes/cli-config.yaml.example:ro
+    environment:
+      # Hermes runs as this user ID, so the files it writes in your notes stay
+      # yours. 1000 is the first user on most Linux systems; see .env.template.
+      - HERMES_UID=${HERMES_UID:-1000}
+      - HERMES_GID=${HERMES_GID:-1000}
+      # The API for Open WebUI. Hermes creates a random key for it on the
+      # first start (API_SERVER_KEY in data/.env).
+      - API_SERVER_ENABLED=true
+      - API_SERVER_HOST=0.0.0.0
+      # Hermes's file tools may only write to its own data and to /workspace
+      - HERMES_WRITE_SAFE_ROOT=/opt/data:/workspace
+      # Where Hermes's Obsidian skill looks for the vault
+      - OBSIDIAN_VAULT_PATH=/workspace
+    # Optional settings for this machine. See .env.template.
+    env_file:
+      - path: .env
+        required: false
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+# Shared "ai-leverage" network: reaches Ollama as http://ollama:11434, and
+# Open WebUI reaches this service as http://hermes:8642.
+# Created by src/bash/docker-create-network.sh.
+networks:
+  default:
+    name: ai-leverage
+    external: true

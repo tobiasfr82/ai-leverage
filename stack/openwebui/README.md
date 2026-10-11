@@ -10,6 +10,8 @@ from the environment variables in `compose.yaml`. They are pre-set to:
 
 - use Ollama for chat models (`http://ollama:11434`)
 - also list vLLM's model while vLLM runs (`http://vllm:8000/v1`)
+- also list Hermes as `hermes-agent` (`http://hermes:8642/v1`), if
+  **hermes → connect_openwebui** has saved Hermes's key before this first start
 - read uploaded documents with Docling (`http://docling:5001`)
 - search documents with Ollama embeddings (`rag/qwen3-embedding:8b`, which
   **ollama → sync_models** builds from `stack/ollama/specs/`)
@@ -34,6 +36,7 @@ Installs from before the shared network reach Ollama and Docling through
 | --------------------------------------- | ---------------------------------------- |
 | Connections → Ollama API                | `http://ollama:11434` (press verify)     |
 | Connections → OpenAI API (optional)     | `http://vllm:8000/v1`, no key, for vLLM  |
+| Connections → OpenAI API (optional)     | `http://hermes:8642/v1` for Hermes, key from **hermes → connect_openwebui** |
 | Documents → Content Extraction Engine   | Docling, server URL `http://docling:5001` |
 | Documents → Embedding (Ollama) URL      | `http://ollama:11434`                    |
 | Documents → Embedding model             | `rag/qwen3-embedding:8b`                 |
@@ -68,6 +71,10 @@ General**, make sure that:
 Also check that **Admin Panel → Users** only lists people you know, and that your admin
 password is strong.
 
+If you connected Hermes, anyone who can chat with the `hermes-agent` model can have Hermes
+read and change the files it works on. Only admins see it until you share it, so keep it
+unshared and don't give other people the admin role.
+
 ### 2. Open the door
 
 ```bash
@@ -98,8 +105,9 @@ and open `http://<that-address>:3000` on the other device.
 
 ### 4. Confirm the engines stay private
 
-From the other device, `http://<pc-name>.local:11434` (Ollama) and
-`http://<pc-name>.local:5001/ui` (Docling) must **not** load.
+From the other device, `http://<pc-name>.local:11434` (Ollama),
+`http://<pc-name>.local:5001/ui` (Docling) and `http://<pc-name>.local:8642/health`
+(Hermes) must **not** load.
 
 ### Good to know
 

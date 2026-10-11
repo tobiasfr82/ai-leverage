@@ -17,12 +17,12 @@ such as an Obsidian vault. You talk to it in the terminal or, as a model called
 
 ## First start
 
-1. **Get the model.** Run **ollama → sync_models**. It builds `agent/qwen3.6:35b`, which
-   Hermes uses by default (see `first-start-config.yaml`).
+1. **Get the model.** Run **downloaders → ollama → sync_models**. It builds
+   `agent/qwen3.6:35b`, which Hermes uses by default (see `first-start-config.yaml`).
 2. **Give Hermes your notes.** Without this, it works in an empty `data/workspace` folder.
 
    ```bash
-   cd stack/hermes
+   cd stack/services/hermes
    cp .env.template .env
    ```
 
@@ -117,7 +117,7 @@ Open WebUI then reaches it at `http://hermes:<its port>/v1`.
 
 - **Switch models** in a chat with `/model`, or permanently with `./chat.sh model`. Hermes
   needs a context of at least 64k tokens; the `agent/...` models in
-  [stack/ollama/specs](../ollama/specs) are built for that.
+  [stack/downloaders/ollama/specs](../../downloaders/ollama/specs) are built for that.
 - **Replies take a while.** Hermes may read and write several files before it answers. In
   Open WebUI you see each step as it happens.
 - **New key?** If you delete `data/`, Hermes creates a new key on its next start. Run

@@ -1,7 +1,23 @@
-# Ollama
+# Ollama models
 
-The everyday engine: easy model switching, and several models on one GPU. On this PC it
-answers at `http://localhost:11434`; other containers use `http://ollama:11434`.
+Downloads the models the Ollama engine runs into the shared `models/ollama` folder at the
+top of the repo, and builds the custom models in `specs/`. The engine itself is in
+[stack/engines/ollama](../../engines/ollama).
+
+## How it downloads
+
+Ollama can only download its models through Ollama itself. So **downloaders → ollama →
+sync_models** starts a temporary Ollama of its own, just for downloading:
+
+- **It gets no GPU and no open port,** so it never takes memory from an engine that runs,
+  for example vLLM while Hermes works with it.
+- **It saves into `models/ollama`,** the folder the engine runs its models from. The engine
+  sees each finished model straight away, and if it was stopped, it stays stopped.
+- **It is removed when the sync ends.**
+
+Ollama checks every file it downloads (`verifying sha256 digest` in the output) and then
+records the finished model (`writing manifest`). The temporary Ollama does all of that
+itself, so nothing is left for the engine to do.
 
 ## Two kinds of models
 
@@ -20,8 +36,8 @@ qwen3-embedding:8b ──────► rag/qwen3-embedding:8b   8k context, Op
 - **A spec model takes no extra disk space.** It reuses its base model's files and only adds
   settings: context size, temperature, a system prompt.
 - **It cannot be downloaded,** because it only exists as a recipe in `specs/`.
-  **ollama → sync_models** builds every spec after the downloads, and fetches a spec's base
-  model even if `models.txt` doesn't list it.
+  **downloaders → ollama → sync_models** builds every spec after the downloads, and fetches
+  a spec's base model even if `models.txt` doesn't list it.
 - **Don't list spec models in `models.txt`.** `sync_models` knows them from `specs/` and
   never offers to delete them or the models they are built on.
 
@@ -56,12 +72,14 @@ for 128k, 262144 for 256k. Otherwise the agent may assume the model's maximum, o
 the context, and Ollama silently drops the start of the conversation, including the
 agent's own instructions.
 
-The sizes in `specs/` fit a 32 GB RTX 5090 with `OLLAMA_KV_CACHE_TYPE=q8_0`
-(see `.env.template`). On a smaller card, lower `PARAMETER num_ctx` in the spec.
+The sizes in `specs/` fit a 32 GB RTX 5090 with `OLLAMA_KV_CACHE_TYPE=q8_0` (see the
+engine's [.env.template](../../engines/ollama/.env.template)). On a smaller card, lower
+`PARAMETER num_ctx` in the spec.
 
 ## Scripts
 
-| Script           | What it does                                                          |
-| ---------------- | --------------------------------------------------------------------- |
-| `sync_models.sh` | Makes Ollama match `models.txt`, then builds everything in `specs/`   |
-| `build_specs.sh` | Builds only the specs (`--dry-run` to preview)                        |
+| Script                | What it does                                                          |
+| --------------------- | --------------------------------------------------------------------- |
+| `sync_models.sh`      | Makes `models/ollama` match `models.txt`, then builds everything in `specs/` |
+| `build_specs.sh`      | Builds only the specs (`--dry-run` to preview)                        |
+| `temporary_ollama.sh` | The temporary Ollama both scripts download with. Not a menu entry      |

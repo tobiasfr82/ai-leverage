@@ -14,7 +14,7 @@ from the environment variables in `compose.yaml`. They are pre-set to:
   **hermes → connect_openwebui** has saved Hermes's key before this first start
 - read uploaded documents with Docling (`http://docling:5001`)
 - search documents with Ollama embeddings (`rag/qwen3-embedding:8b`, which
-  **ollama → sync_models** builds from `stack/ollama/specs/`)
+  **downloaders → ollama → sync_models** builds from `stack/downloaders/ollama/specs/`)
 
 The only manual step is creating your admin account on the first visit.
 
@@ -78,7 +78,7 @@ unshared and don't give other people the admin role.
 ### 2. Open the door
 
 ```bash
-cd stack/openwebui
+cd stack/services/openwebui
 cp .env.template .env        # skip if you already have a .env
 ```
 

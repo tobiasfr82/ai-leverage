@@ -1,0 +1,29 @@
+# Hermes's settings for its very first start.
+# Hermes copies this file to data/config.yaml once. After that, data/config.yaml
+# is the one that counts: change it there, or from Hermes itself (menu:
+# hermes -> chat, then /model to switch models).
+# Anything not listed here uses Hermes's built-in default.
+
+model:
+  # Ollama from this stack, over the shared Docker network. It needs no key.
+  provider: custom
+  base_url: http://ollama:11434/v1
+  api_key: ""
+  # Built from stack/ollama/specs by ollama -> sync_models. Hermes needs a
+  # context of at least 64k tokens; this model has 256k. On a smaller GPU,
+  # use agent/qwen3-coder:30b or agent/gemma4:31b with 131072 instead.
+  default: agent/qwen3.6:35b
+  context_length: 262144
+
+terminal:
+  # Commands run inside the Hermes container and start in /workspace, the
+  # folder HERMES_WORKSPACE in .env points at.
+  backend: local
+  cwd: /workspace
+
+approvals:
+  # Risky commands, such as deleting folders: Hermes judges them itself,
+  # refuses the clearly dangerous ones and asks you about the rest.
+  mode: smart
+  # Requests from Open WebUI have nobody to ask, so risky commands are refused.
+  unattended_mode: deny

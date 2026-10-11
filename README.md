@@ -4,8 +4,8 @@ A bash & Python-native framework for running large language models locally with 
 
 ## Overview
 AI-Leverage runs a private AI stack on your own PC: a chat interface, two engines that
-run the models, and a document reader, all in Docker and all talking to each other out of
-the box. One menu (`manage.sh`) starts, stops and updates everything, and plain text lists
+run the models, a document reader and an AI agent, all in Docker and all talking to each
+other out of the box. One menu (`manage.sh`) starts, stops and updates everything, and plain text lists
 decide which models get downloaded.
 
 ## 🚀 Quick start
@@ -20,29 +20,40 @@ large and made for a 32 GB GPU, so trim it to what you want first (see
 [Hardware](#-hardware)). Then open `http://localhost:3000`. On the first visit you create
 the admin account; everything else is pre-set.
 
+For the AI agent as well, start **hermes** and run **hermes → connect_openwebui** before
+you start **openwebui** for the first time, so Open WebUI lists it too. Read
+[stack/hermes/README.md](stack/hermes/README.md) first: it explains which of your files
+Hermes can change.
+
 ## 🏗️ How it fits together
 ```text
-                   you, in the browser: http://localhost:3000
-                                  │
-                           ┌──────▼──────┐
-                           │ Open WebUI  │  chat interface
-                           └─┬────┬────┬─┘
-         chat + embeddings   │    │    │   reading uploaded documents
-                 ┌───────────┘    │    └───────────┐
-            ┌────▼────┐      ┌────▼────┐      ┌────▼────┐
-            │ Ollama  │      │  vLLM   │      │ Docling │  (its models ship
-            └────┬────┘      └────┬────┘      └─────────┘   inside the image)
-                 │                │
-          models/ollama    models/huggingface
-                 ▲                ▲
-   stack/ollama/sync_models   stack/huggingface/sync_models
-   (models.txt + specs/)      (models.txt)
+                     you, in the browser: http://localhost:3000
+                                    │
+                             ┌──────▼──────┐
+                             │ Open WebUI  │  chat interface
+                             └─┬───┬───┬──┬┘
+       chat + embeddings       │   │   │  │   reading uploaded documents
+          ┌────────────────────┘   │   │  └─────────────────────┐
+          │            ┌───────────┘   └───────┐                │
+     ┌────▼────┐  ┌────▼────┐             ┌────▼────┐      ┌────▼────┐
+     │ Ollama  ◄──┤ Hermes  │ the agent   │  vLLM   │      │ Docling │  (its models ship
+     └────┬────┘  └────┬────┘             └────┬────┘      └─────────┘   inside the image)
+          │            ▼                       │
+          │       your notes                   │
+   models/ollama                       models/huggingface
+          ▲                                    ▲
+stack/ollama/sync_models         stack/huggingface/sync_models
+(models.txt + specs/)            (models.txt)
 ```
 
 - **Ollama** is the everyday engine: easy model switching, many models on one GPU.
 - **vLLM** is the fast engine for one model at a time. Pick the model with
   `stack/vllm/set_model.sh` (menu: **vllm → set_model**).
 - **Docling** turns uploaded PDFs and Office files into text Open WebUI can search.
+- **Hermes** is an AI agent: it thinks with Ollama's models and reads, writes and links the
+  files in one folder of yours, such as an Obsidian vault. Chat with it in the terminal
+  (**hermes → chat**) or as `hermes-agent` in Open WebUI. See
+  [stack/hermes/README.md](stack/hermes/README.md) for what it can reach.
 - Models live in the shared `models/` folder at the top of the repo, never inside a
   container, so updating or rebuilding a service never re-downloads them.
 
@@ -74,9 +85,10 @@ next to each one. Start the service again from the menu to apply a change.
   chats and documents. vLLM fits the longest context into the memory it is given.
 - **Agents need a bigger context.** Hermes Agent needs at least 64k, and VS Code's agent
   mode fills context quickly. The `agent/...` models that **ollama → sync_models** builds
-  from `stack/ollama/specs/` have 128k, and `agent/qwen3.6:35b` has 256k. Point the agent
-  at one of those, at `http://localhost:11434/v1`, and tell it the same context size
-  (131072, or 262144 for 256k). See
+  from `stack/ollama/specs/` have 128k, and `agent/qwen3.6:35b` has 256k. The Hermes in
+  `stack/hermes` uses `agent/qwen3.6:35b` out of the box. For an agent outside the stack,
+  point it at one of those models, at `http://localhost:11434/v1`, and tell it the same
+  context size (131072, or 262144 for 256k). See
   [stack/ollama/README.md](stack/ollama/README.md) for how these custom models work.
 - **The model lists are the maintainer's picks for a 32 GB RTX 5090,** and so are the
   context sizes in `stack/ollama/specs/`. On a smaller card, trim `stack/ollama/models.txt`
@@ -100,6 +112,7 @@ each other by name over it, and by default nothing is reachable from outside thi
 | Ollama     | `http://ollama:11434`   | `http://localhost:11434`                       |
 | vLLM       | `http://vllm:8000/v1`   | `http://localhost:8000/v1`                     |
 | Docling    | `http://docling:5001`   | `http://localhost:5001` (web UI at `/ui`)      |
+| Hermes     | `http://hermes:8642/v1` | `http://localhost:8642/v1` (needs its key)     |
 
 - **Every port is published on `127.0.0.1` (this PC only).** Docker's published ports bypass
   host firewalls such as `ufw`, so this binding is what keeps them private.
@@ -108,7 +121,8 @@ each other by name over it, and by default nothing is reachable from outside thi
 - **Only services with their own login can be opened to your network.** For Open WebUI, see
   [Opening it to your home network](stack/openwebui/README.md#opening-it-to-your-home-network):
   a quick check of the account settings, then one setting in a local `.env`. Ollama, vLLM
-  and Docling have no login, so they stay on this PC.
+  and Docling have no login, so they stay on this PC. So does Hermes, because it can
+  change your files.
 - **Personal settings stay out of git.** IP addresses, domains and tokens belong in a `.env`
   file next to the service's `compose.yaml`; `.env` files are git-ignored.
 - **After changing a `compose.yaml` or `.env`, use Start** in `manage.sh` (or

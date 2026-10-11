@@ -15,9 +15,11 @@ services:
       # --- Core API Integrations ---
       # Only used on first start. After that Open WebUI keeps its own copy in
       # its database; change these under Admin Panel > Settings instead.
-      # Chat models: Ollama, plus vLLM when it runs
+      # Chat models: Ollama, plus vLLM when it runs, plus Hermes once
+      # hermes -> connect_openwebui has saved Hermes's key in .env
       - 'OLLAMA_BASE_URL=http://ollama:11434'
-      - 'OPENAI_API_BASE_URL=http://vllm:8000/v1'
+      - 'OPENAI_API_BASE_URLS=http://vllm:8000/v1${HERMES_API_KEY:+;http://hermes:8642/v1}'
+      - 'OPENAI_API_KEYS=${HERMES_API_KEY:+;${HERMES_API_KEY}}'
       # Reading uploaded documents
       - 'CONTENT_EXTRACTION_ENGINE=docling'
       - 'DOCLING_SERVER_URL=http://docling:5001'

@@ -9,9 +9,12 @@ services:
       # This PC only. Other containers use http://vllm:8000/v1 over the shared
       # network. VLLM_PORT in .env changes the port on this PC.
       - "127.0.0.1:${VLLM_PORT:-8000}:8000"
+    labels:
+      # What manage.sh shows while it runs: the address apps use, not a web page
+      ai-leverage.url: "http://localhost:${VLLM_PORT:-8000}/v1 (API)"
     volumes:
-      # Models downloaded by stack/huggingface
-      - ../../models/huggingface:/root/.cache/huggingface
+      # Models downloaded by stack/downloaders/huggingface
+      - ../../../models/huggingface:/root/.cache/huggingface
     # vLLM's worker processes pass data through shared memory, and Docker's
     # default allowance for that (64 MB) is too small.
     ipc: host
@@ -19,7 +22,7 @@ services:
     # takes 85% of the GPU's memory and fits the longest context it can.
     # VLLM_EXTRA_ARGS in .env adds any other vLLM option, e.g. ones a model needs.
     command: >
-      --model ${HUGGINGFACE_MODEL:?no model chosen yet - run set_model.sh in stack/vllm}
+      --model ${HUGGINGFACE_MODEL:?no model chosen yet - run set_model.sh in stack/engines/vllm}
       --max-model-len ${CONTEXT_SIZE:-auto}
       --gpu-memory-utilization ${VRAM_LIMIT:-0.85}
       ${VLLM_EXTRA_ARGS:-}

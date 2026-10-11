@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # ICM MULTI-MODEL SPECIFICATION COMPILER
-# Builds a custom Ollama model from every specs/*.model file.
+# Builds a custom Ollama model from every specs/*.model file, in the shared
+# models/ollama folder, with a temporary Ollama (temporary_ollama.sh).
 # Usage: ./build_specs.sh [--dry-run | -d | --list]
 #   --dry-run  show what would be built, change nothing
 #   --list     print the model names the specs produce and the base models they
@@ -11,9 +12,9 @@ set -euo pipefail
 
 # 1. PATH RESOLUTION
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)
+REPO_DIR=$(cd "$SCRIPT_DIR/../../.." && pwd)
 SPECS_DIR="${SCRIPT_DIR}/specs"
-CONTAINER_NAME="ollama"
+source "$SCRIPT_DIR/temporary_ollama.sh"
 
 # 2. NAMING CONVENTION
 # "icm-crew_gemma4-31b.model" -> "icm-crew/gemma4:31b"
@@ -70,26 +71,14 @@ if [ "$MODE" = "dry-run" ]; then
 else
     echo " ICM PIPELINE: INITIALIZING ACTIVE COMPILE PHASE (SUDO DOCKER)"
 fi
-echo " Target Container:  $CONTAINER_NAME"
+echo " Target Container:  $DOWNLOADER (temporary)"
 echo " Discovered ${#SPEC_FILES[@]} profile recipe(s) inside '$SPECS_DIR'"
 echo "======================================================================"
 
-# 6. MAKE SURE OLLAMA IS RUNNING
+# 6. START THE TEMPORARY OLLAMA
 if [ "$MODE" = "build" ]; then
     echo "System: Requesting administrative privileges (sudo) to query the Docker daemon..."
-    if ! sudo docker exec "$CONTAINER_NAME" ollama list > /dev/null 2>&1; then
-        echo "System: Ollama is not running. Starting it..."
-        "$REPO_DIR/src/bash/docker-create-network.sh"
-        (cd "$SCRIPT_DIR" && sudo docker compose up -d)
-        for _ in $(seq 30); do
-            sudo docker exec "$CONTAINER_NAME" ollama list > /dev/null 2>&1 && break
-            sleep 2
-        done
-        if ! sudo docker exec "$CONTAINER_NAME" ollama list > /dev/null 2>&1; then
-            echo "Error: Ollama did not start. Check its logs (manage.sh -> ollama -> View logs)."
-            exit 1
-        fi
-    fi
+    start_downloader "$REPO_DIR" "$SPECS_DIR" || exit 1
     echo "System: Connection to Docker daemon verified."
     echo "----------------------------------------------------------------------"
 fi
@@ -119,9 +108,9 @@ for SPEC_PATH in "${SPEC_FILES[@]}"; do
     echo "Validating baseline dependencies inside container for: $BASE_DEPENDENCY"
 
     # Query container internal storage
-    if ! sudo docker exec "$CONTAINER_NAME" ollama list | grep -q "^${BASE_DEPENDENCY}\s"; then
+    if ! ollama_cmd list | grep -q "^${BASE_DEPENDENCY}\s"; then
         echo "Base weights absent from container environment. Running fetch routine..."
-        if ! sudo docker exec "$CONTAINER_NAME" ollama pull "$BASE_DEPENDENCY"; then
+        if ! ollama_cmd pull "$BASE_DEPENDENCY"; then
             echo "Network Failure: Unable to fetch weights for '$BASE_DEPENDENCY' inside container. Skipping target."
             continue
         fi
@@ -129,22 +118,13 @@ for SPEC_PATH in "${SPEC_FILES[@]}"; do
         echo "Base weights validated in container storage cache."
     fi
 
-    # Stage specification file inside container
-    TEMP_CONTAINER_PATH="/tmp/${FILENAME}.modelfile"
-    echo "Staging specification manifest inside container: $TEMP_CONTAINER_PATH"
-    sudo docker cp "$SPEC_PATH" "${CONTAINER_NAME}:${TEMP_CONTAINER_PATH}"
-
-    # Compile the target engine
+    # Compile the target engine. The temporary Ollama sees specs/ as /specs.
     echo "Building custom engine signature inside container..."
-    if sudo docker exec "$CONTAINER_NAME" ollama create "$TARGET_MODEL" -f "$TEMP_CONTAINER_PATH"; then
+    if ollama_cmd create "$TARGET_MODEL" -f "/specs/$FILENAME"; then
         echo "Successfully registered engine instance: $TARGET_MODEL"
     else
         echo "Error: Compilation sequence dropped for target model: $TARGET_MODEL"
     fi
-
-    # Clean staging environment
-    echo "Cleaning up container staging files..."
-    sudo docker exec "$CONTAINER_NAME" rm -f "$TEMP_CONTAINER_PATH"
     echo "----------------------------------------------------------------------"
 done
 

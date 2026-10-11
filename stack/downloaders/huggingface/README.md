@@ -2,7 +2,7 @@
 
 Downloads the models vLLM serves into the shared `models/huggingface` folder at the top
 of the repo. vLLM reads that same folder, so a model downloaded here shows up in
-`stack/vllm/set_model.sh`.
+`stack/engines/vllm/set_model.sh`.
 
 | Script             | What it does                                                   |
 | ------------------ | -------------------------------------------------------------- |

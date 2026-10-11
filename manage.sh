@@ -1,9 +1,11 @@
 #!/bin/bash
 # ai-leverage/manage.sh
-# Menu for everything in stack/: start, stop, update and follow the logs of each
+# Menu for everything in stack/, grouped in the order the parts build on each
+# other: downloaders get models onto this PC, engines run them, and services are
+# what you use. Start, stop, update and follow the logs of each engine and
 # service, and run the scripts a folder brings along (model downloads and such).
-# A new folder shows up here on its own: a compose.yaml makes it a service, and
-# every executable *.sh in it becomes a menu entry.
+# A new folder in a group shows up here on its own: a compose.yaml gives it
+# Start/Stop, and every executable *.sh in it becomes a menu entry.
 
 # --- Configuration ---
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,6 +13,14 @@ STACK_DIR="$BASE_DIR/stack"
 
 # Unified script directory (all helpers moved here)
 SCRIPT_DIR="$BASE_DIR/src/bash"
+
+# The groups in stack/, in menu order, each with the line shown next to its
+# heading. A folder in stack/ that isn't listed here still shows up, after these.
+STACK_GROUPS=(
+  "downloaders|get models onto this PC"
+  "engines|run the models"
+  "services|what you use"
+)
 
 # Colors
 RED='\033[0;31m'
@@ -38,6 +48,34 @@ compose_file() {
 # Executable *.sh files in a folder, by name
 list_scripts() {
   find "$1" -maxdepth 1 -type f -name '*.sh' -perm -u+x -printf '%f\n' | sort
+}
+
+# Every group as "name|description": the ones in STACK_GROUPS first, in that
+# order, then any other folder in stack/
+list_groups() {
+  local dir name entry known
+  printf '%s\n' "${STACK_GROUPS[@]}"
+  for dir in "$STACK_DIR"/*/; do
+    [ -d "$dir" ] || continue
+    name=$(basename "$dir")
+    known=false
+    for entry in "${STACK_GROUPS[@]}"; do
+      [ "${entry%%|*}" == "$name" ] && known=true
+    done
+    $known || echo "$name|"
+  done
+}
+
+# The folders in a group the menu can do something with: ones with a compose
+# file or with scripts to run
+group_items() {
+  local dir
+  for dir in "$1"/*/; do
+    [ -d "$dir" ] || continue
+    if [ -n "$(compose_file "$dir")" ] || [ -n "$(list_scripts "$dir")" ]; then
+      echo "${dir%/}"
+    fi
+  done
 }
 
 # Runs a command in this terminal. Ctrl+C stops the command, not the menu.
@@ -77,18 +115,96 @@ open_helper() {
   run_here bash -c "$cmd"
 }
 
+# Compose's name for a folder's project, which its containers are labelled
+# with: the folder name in lowercase, keeping letters, digits, - and _
+project_name() {
+  basename "$1" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-'
+}
+
+# What runs, from one look at Docker. For each Compose project, STATES holds
+# running, restarting or stopped, and URLS where to open it while it runs: its
+# ai-leverage.url label (set in compose.yaml when the address needs more than a
+# port, such as a path), or else the first port it publishes on this PC.
+declare -A STATES URLS
+load_states() {
+  STATES=()
+  URLS=()
+  local project state url ports
+  while IFS='|' read -r project state url ports; do
+    [ -n "$project" ] || continue
+    case "$state" in
+      running)
+        STATES[$project]=running
+        if [ -z "$url" ] && [[ "$ports" =~ :([0-9]+)- ]]; then
+          url="http://localhost:${BASH_REMATCH[1]}"
+        fi
+        [ -n "$url" ] && URLS[$project]=$url
+        ;;
+      restarting)
+        [ "${STATES[$project]}" == running ] || STATES[$project]=restarting
+        ;;
+      *)
+        [ -n "${STATES[$project]}" ] || STATES[$project]=stopped
+        ;;
+    esac
+  done < <(sudo docker ps --all --format '{{.Label "com.docker.compose.project"}}|{{.State}}|{{.Label "ai-leverage.url"}}|{{.Ports}}' 2> /dev/null)
+}
+
+# A folder's status: [UP], [RESTARTING] (it keeps crashing), [STOPPED], or
+# [DOWN] when it has no container yet. Nothing for folders with scripts only.
+# An optional width pads it, to line statuses up in a list.
 get_status() {
-  local dir=$1
-  if [ -z "$(compose_file "$dir")" ]; then
-    echo -e "${CYAN}[TOOLS]${NC}"
-  # Improved status check to differentiate between Running and Stopped
-  elif (cd "$dir" && sudo docker compose ps --format "{{.State}}" 2> /dev/null | grep -q "running"); then
-    echo -e "${GREEN}[UP]${NC}"
-  elif (cd "$dir" && sudo docker compose ps --all --quiet 2> /dev/null | grep -q .); then
-    echo -e "${YELLOW}[STOPPED]${NC}"
-  else
-    echo -e "${RED}[DOWN]${NC}"
+  [ -n "$(compose_file "$1")" ] || return
+  local label color project
+  project=$(project_name "$1")
+  case "${STATES[${project:-_}]}" in
+    running)    label="[UP]";         color=$GREEN ;;
+    restarting) label="[RESTARTING]"; color=$RED ;;
+    stopped)    label="[STOPPED]";    color=$YELLOW ;;
+    *)          label="[DOWN]";       color=$RED ;;
+  esac
+  printf "${color}%-${2:-0}s${NC}" "$label"
+}
+
+# Where to open a folder's service while it runs (see load_states)
+get_url() {
+  [ -n "$(compose_file "$1")" ] || return
+  local project
+  project=$(project_name "$1")
+  echo "${URLS[${project:-_}]}"
+}
+
+# Stops every engine and service that runs, after asking. The services stop
+# first, then the engines they use: the menu's order, backwards.
+stop_all() {
+  local items=("$@") active=() i dir
+  load_states
+  for (( i=${#items[@]}-1; i>=0; i-- )); do
+    dir=${items[$i]}
+    [ -n "$(compose_file "$dir")" ] || continue
+    case "${STATES[$(project_name "$dir")]}" in
+      running|restarting) active+=("$dir") ;;
+    esac
+  done
+  if [ ${#active[@]} -eq 0 ]; then
+    echo -e "\n${CYAN}Nothing is running.${NC}"
+    sleep 1
+    return
   fi
+
+  echo -e "\n${RED}${BOLD}STOP ALL:${NC} $(for dir in "${active[@]}"; do printf '%s ' "$(basename "$dir")"; done)"
+  read -p "Stop these? (y/N): " confirm
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    echo -e "${CYAN}Cancelled.${NC}"
+    sleep 1
+    return
+  fi
+  for dir in "${active[@]}"; do
+    echo -e "\n${CYAN}Stopping ${dir#"$STACK_DIR"/}...${NC}"
+    (cd "$dir" && sudo docker compose stop)
+  done
+  echo -e "\n${GREEN}Complete!${NC}"
+  pause
 }
 
 run_cmd() {
@@ -113,8 +229,8 @@ ensure_network() {
 
 service_menu() {
   local path=$1
-  local name
-  name=$(basename "$path")
+  # With its group, e.g. "engines/ollama": ollama is a downloader and an engine
+  local name=${path#"$STACK_DIR"/}
   local has_compose=false
   [ -n "$(compose_file "$path")" ] && has_compose=true
   # Service actions take 1-6, so the folder's own scripts start at 7
@@ -122,12 +238,14 @@ service_menu() {
   $has_compose && first=7
 
   while true; do
+    # Before clearing the screen, in case sudo asks for your password
+    load_states
     local status_indicator
-    status_indicator=$(get_status "$path")
+    status_indicator="$(get_status "$path") $(get_url "$path")"
     local scripts
     mapfile -t scripts < <(list_scripts "$path")
     clear
-    echo -e "${BOLD}AI LEVERAGE${NC} > ${YELLOW}$name${NC} $status_indicator"
+    echo -e "${BOLD}AI LEVERAGE${NC} > ${YELLOW}${name/\// > }${NC} $status_indicator"
     echo -e "--------------------------------------------"
     if $has_compose; then
       echo -e "1) ${GREEN}Start${NC} (up, also applies .env changes)"
@@ -190,43 +308,54 @@ service_menu() {
 
 main_menu() {
   while true; do
+    # Before clearing the screen, in case sudo asks for your password
+    load_states
     clear
     echo -e "${BOLD}AI LEVERAGE STACK MANAGER${NC}"
     echo -e "--------------------------------------------"
-    # Services (folders with a compose file) first, then folders with only scripts
-    local services tools dir
-    mapfile -t services < <(for dir in "$STACK_DIR"/*/; do [ -n "$(compose_file "$dir")" ] && echo "${dir%/}"; done)
-    mapfile -t tools < <(for dir in "$STACK_DIR"/*/; do [ -z "$(compose_file "$dir")" ] && [ -n "$(list_scripts "$dir")" ] && echo "${dir%/}"; done)
-    local projects=("${services[@]}" "${tools[@]}")
+    # A heading per group, and its folders under it, with where to open the
+    # ones that run. The numbers run on from one group to the next.
+    local groups entry group members dir
+    local items=()
+    mapfile -t groups < <(list_groups)
+    for entry in "${groups[@]}"; do
+      group=${entry%%|*}
+      mapfile -t members < <(group_items "$STACK_DIR/$group")
+      [ ${#members[@]} -eq 0 ] && continue
+      printf "${BOLD}%-13s${NC} %s\n\n" "${group^^}" "${entry#*|}"
+      for dir in "${members[@]}"; do
+        items+=("$dir")
+        printf "%2d) ${BOLD}%-14s${NC} %s %s\n" "${#items[@]}" "$(basename "$dir")" "$(get_status "$dir" 12)" "$(get_url "$dir")"
+      done
+      echo
+    done
 
-    if [ ${#projects[@]} -eq 0 ]; then
-      echo -e "${RED}No services found in $STACK_DIR${NC}"
+    if [ ${#items[@]} -eq 0 ]; then
+      echo -e "${RED}Nothing found in $STACK_DIR${NC}"
       read -n 1 -p "Check structure and press any key to exit..."
       exit 0
     fi
 
-    local i
-    for i in "${!projects[@]}"; do
-      local path="${projects[$i]}"
-      local status
-      status=$(get_status "$path")
-      echo -e "$((i+1))) ${BOLD}$(basename "$path")${NC} $status"
-    done
-
     echo -e "--------------------------------------------"
     echo -e "m) ${CYAN}Monitor GPU${NC}"
     echo -e "p) ${CYAN}View Docker Ports${NC}"
+    echo -e "s) ${RED}Stop all${NC} engines and services"
     echo -e "q) Quit"
     echo -e "--------------------------------------------"
-    read -p "Select service: " choice
+    read -p "Selection: " choice
 
     if [[ "$choice" == "q" ]]; then clear; exit 0; fi
     if [[ "$choice" == "m" ]]; then open_helper "monitor-gpu.sh"; fi
     if [[ "$choice" == "p" ]]; then open_helper "docker-list-ports.sh"; fi
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -le "${#projects[@]}" ] && [ "$choice" -gt 0 ]; then
-      service_menu "${projects[$((choice-1))]}"
+    if [[ "$choice" == "s" ]]; then stop_all "${items[@]}"; fi
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -le "${#items[@]}" ] && [ "$choice" -gt 0 ]; then
+      service_menu "${items[$((choice-1))]}"
     fi
   done
 }
+
+# Installs from before stack/ was split into groups keep their settings and data
+# in the old folders until this moves them. It does nothing once they're moved.
+"$SCRIPT_DIR/migrate-stack-layout.sh" || exit 1
 
 main_menu

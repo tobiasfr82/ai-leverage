@@ -1,12 +1,12 @@
 #!/bin/bash
-# ai-leverage/stack/vllm/set_model.sh
+# ai-leverage/stack/engines/vllm/set_model.sh
 # Pick which downloaded Hugging Face model vLLM serves. The choice is saved in
 # .env (git-ignored), and vLLM can be restarted with it right away.
 
 # Configuration Paths
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 ENV_FILE=".env"
-MODELS_DIR="../../models/huggingface/hub"
+MODELS_DIR="../../../models/huggingface/hub"
 
 # --- 1. INITIALIZE & PREVIEW ---
 clear
@@ -42,8 +42,8 @@ if [ -d "$MODELS_DIR" ]; then
 fi
 
 if [ ${#models[@]} -eq 0 ]; then
-    echo "No models downloaded yet. Add some to stack/huggingface/models.txt and"
-    echo "run stack/huggingface/sync_models.sh (manage.sh -> huggingface) first."
+    echo "No models downloaded yet. Add some to stack/downloaders/huggingface/models.txt"
+    echo "and run its sync_models (manage.sh -> huggingface -> sync_models) first."
     exit 1
 fi
 
@@ -85,7 +85,7 @@ done
 read -p "Start vLLM with this model now? (y/N): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    ../../src/bash/docker-create-network.sh && sudo docker compose up -d
+    ../../../src/bash/docker-create-network.sh && sudo docker compose up -d
     echo "Loading a model takes a few minutes. Follow it in manage.sh -> vllm -> View logs."
 else
     echo "Start vLLM (manage.sh -> vllm -> Start) when ready."

@@ -25,5 +25,5 @@ __pycache__/
 models/
 
 # Ignore each service's own data (settings, chats, uploads, keys)
-stack/*/data/
-stack/*/output/
+stack/**/data/
+stack/**/output/

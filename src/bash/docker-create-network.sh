@@ -1,11 +1,11 @@
 #!/bin/bash
 # ai-leverage/src/bash/docker-create-network.sh
-# Creates the shared Docker network that every service in stack/ joins.
+# Creates the shared Docker network that every engine and service in stack/ joins.
 # Containers on it reach each other by name (e.g. http://ollama:11434) without
 # opening any ports to the rest of your network. Safe to run repeatedly.
 # Used by manage.sh and bootstrap.sh.
 
-# Must match the network name at the bottom of every stack/*/compose.yaml
+# Must match the network name at the bottom of every stack/*/*/compose.yaml
 NETWORK_NAME="ai-leverage"
 
 if ! command -v docker &> /dev/null; then

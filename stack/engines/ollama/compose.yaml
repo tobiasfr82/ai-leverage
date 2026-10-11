@@ -7,11 +7,14 @@ services:
       # This PC only. Other containers use http://ollama:11434 over the shared
       # network. OLLAMA_PORT in .env changes the port on this PC.
       - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    labels:
+      # What manage.sh shows while it runs: the address apps use, not a web page
+      ai-leverage.url: "http://localhost:${OLLAMA_PORT:-11434} (API)"
     volumes:
       # Keys and settings stay with the service; the models themselves go to
       # the shared models/ folder at the top of the repo.
       - ./data:/root/.ollama
-      - ../../models/ollama:/root/.ollama/models
+      - ../../../models/ollama:/root/.ollama/models
     # Optional settings for this machine, such as context size. Without them
     # Ollama picks values that suit your GPU. See .env.template.
     env_file:

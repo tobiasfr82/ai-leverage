@@ -1,8 +1,8 @@
 #!/bin/bash
-# ai-leverage/stack/hermes/connect_openwebui.sh
+# ai-leverage/stack/services/hermes/connect_openwebui.sh
 # Lets Open WebUI use Hermes as a model. Hermes creates a random API key on its
 # first start; this copies it into Open WebUI's .env (git-ignored), where
-# stack/openwebui/compose.yaml picks it up.
+# stack/services/openwebui/compose.yaml picks it up.
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 HERMES_ENV="data/.env"
@@ -22,7 +22,7 @@ else
 fi
 key=$(echo "${key#API_SERVER_KEY=}" | tr -d "\"'\r")
 if [ -z "$key" ]; then
-  echo "No API_SERVER_KEY in stack/hermes/$HERMES_ENV yet. Restart Hermes and try again."
+  echo "No API_SERVER_KEY in stack/services/hermes/$HERMES_ENV yet. Restart Hermes and try again."
   exit 1
 fi
 
@@ -31,7 +31,7 @@ fi
 # Rewritten in place, so the file keeps its owner and permissions
 rest=$(grep -v '^HERMES_API_KEY=' "$OWUI_ENV")
 printf '%s\nHERMES_API_KEY=%s\n' "$rest" "$key" > "$OWUI_ENV"
-echo "Saved Hermes's key in stack/openwebui/.env."
+echo "Saved Hermes's key in stack/services/openwebui/.env."
 echo
 
 # --- 3. What happens next ---

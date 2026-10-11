@@ -9,9 +9,10 @@ model:
   provider: custom
   base_url: http://ollama:11434/v1
   api_key: ""
-  # Built from stack/ollama/specs by ollama -> sync_models. Hermes needs a
-  # context of at least 64k tokens; this model has 256k. On a smaller GPU,
-  # use agent/qwen3-coder:30b or agent/gemma4:31b with 131072 instead.
+  # Built from stack/downloaders/ollama/specs by downloaders -> ollama ->
+  # sync_models. Hermes needs a context of at least 64k tokens; this model has
+  # 256k. On a smaller GPU, use agent/qwen3-coder:30b or agent/gemma4:31b with
+  # 131072 instead.
   default: agent/qwen3.6:35b
   context_length: 262144
 

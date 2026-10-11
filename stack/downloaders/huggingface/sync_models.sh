@@ -1,5 +1,5 @@
 #!/bin/bash
-# ai-leverage/stack/huggingface/sync_models.sh
+# ai-leverage/stack/downloaders/huggingface/sync_models.sh
 # Downloads every model in models.txt into the shared models/huggingface folder,
 # where vLLM finds them. Files already downloaded are skipped, so re-runs are quick.
 
@@ -15,7 +15,7 @@ fi
 
 # The shared model warehouse. vLLM mounts this same folder, so it is not a
 # setting: to keep models on another disk, make models/ a link to it instead.
-HF_HOME="$(cd ../.. && pwd)/models/huggingface"
+HF_HOME="$(cd ../../.. && pwd)/models/huggingface"
 export HF_HOME
 
 # Filters may be separated by spaces or commas: "*.safetensors *.json".

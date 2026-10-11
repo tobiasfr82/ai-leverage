@@ -9,6 +9,9 @@ services:
       # http://docling:5001 over the shared network. DOCLING_PORT in .env
       # changes the port on this PC.
       - "127.0.0.1:${DOCLING_PORT:-5001}:5001"
+    labels:
+      # What manage.sh shows while it runs: the web UI
+      ai-leverage.url: "http://localhost:${DOCLING_PORT:-5001}/ui"
     environment:
       - DOCLING_SERVE_ENABLE_UI=1
     # Optional settings for this machine. See .env.template.

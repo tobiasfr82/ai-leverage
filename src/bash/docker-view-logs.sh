@@ -1,7 +1,7 @@
 #!/bin/bash
 # ai-leverage/src/bash/docker-view-logs.sh
 # Shows the logs of one service. Used by manage.sh.
-# Usage: docker-view-logs.sh <service folder, e.g. stack/ollama>
+# Usage: docker-view-logs.sh <service folder, e.g. stack/engines/ollama>
 clear
 
 SERVICE_DIR="$1"

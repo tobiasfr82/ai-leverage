@@ -1,5 +1,5 @@
 #!/bin/bash
-# ai-leverage/stack/hermes/chat.sh
+# ai-leverage/stack/services/hermes/chat.sh
 # Opens a chat with Hermes in this terminal. Anything after the script name goes
 # to the hermes command inside the container, for example:
 #   ./chat.sh model           pick another model

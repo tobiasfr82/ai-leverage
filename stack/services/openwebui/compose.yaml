@@ -23,7 +23,8 @@ services:
       # Reading uploaded documents
       - 'CONTENT_EXTRACTION_ENGINE=docling'
       - 'DOCLING_SERVER_URL=http://docling:5001'
-      # Document search (built from stack/ollama/specs by ollama -> sync_models)
+      # Document search (built from stack/downloaders/ollama/specs by
+      # downloaders -> ollama -> sync_models)
       - 'RAG_EMBEDDING_ENGINE=ollama'
       - 'RAG_EMBEDDING_MODEL=rag/qwen3-embedding:8b'
       - 'RAG_OLLAMA_BASE_URL=http://ollama:11434'

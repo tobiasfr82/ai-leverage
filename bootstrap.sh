@@ -3,7 +3,7 @@
 # One-time setup for this machine. Installs what the repo needs and leaves
 # anything already in place alone, so it is safe to run again.
 #   1. uv - runs the Python tools, and fetches the Python version each one needs
-#   2. Docker with the Compose plugin - runs the services in stack/
+#   2. Docker with the Compose plugin - runs the engines and services in stack/
 #   3. NVIDIA Container Toolkit - lets Docker hand the GPU to a service
 #   4. The shared "ai-leverage" Docker network
 # Afterwards, start the services with ./manage.sh.
@@ -126,7 +126,7 @@ else
 fi
 
 # --- 4. Create the shared Docker network ---
-# Every service in stack/ joins this network so they can reach each other by name.
+# Every engine and service in stack/ joins this network so they can reach each other by name.
 # Not fatal: manage.sh creates it too, the first time you start a service.
 if command -v docker &> /dev/null; then
     "$REPO_DIR/src/bash/docker-create-network.sh" \

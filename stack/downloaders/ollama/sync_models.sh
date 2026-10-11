@@ -1,13 +1,15 @@
 #!/bin/bash
-# ai-leverage/stack/ollama/sync_models.sh
-# Makes Ollama match models.txt: pulls what is missing, offers to delete what is
-# no longer listed, then builds the custom models in specs/ (build_specs.sh).
+# ai-leverage/stack/downloaders/ollama/sync_models.sh
+# Makes the shared models/ollama folder match models.txt: pulls what is missing,
+# offers to delete what is no longer listed, then builds the custom models in
+# specs/ (build_specs.sh). It downloads with a temporary Ollama of its own
+# (temporary_ollama.sh), so the Ollama engine can stay as it is, running or not.
 
 # Configuration
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
-REPO_DIR="$(cd ../.. && pwd)"
+REPO_DIR="$(cd ../../.. && pwd)"
 MODEL_FILE="models.txt"
-CONTAINER_NAME="ollama"
+source ./temporary_ollama.sh
 
 if [ ! -f "$MODEL_FILE" ]; then
     echo "Error: $MODEL_FILE not found"
@@ -26,18 +28,8 @@ contains() {
     return 1
 }
 
-# 1. Start Ollama & wait until it answers
-"$REPO_DIR/src/bash/docker-create-network.sh" || exit 1
-sudo docker compose up -d || exit 1
-echo "Checking Ollama status..."
-for _ in $(seq 30); do
-    sudo docker exec "$CONTAINER_NAME" ollama list > /dev/null 2>&1 && break
-    sleep 2
-done
-if ! sudo docker exec "$CONTAINER_NAME" ollama list > /dev/null 2>&1; then
-    echo "Error: Ollama did not start. Check its logs (manage.sh -> ollama -> View logs)."
-    exit 1
-fi
+# 1. Start the temporary Ollama & wait until it answers
+start_downloader "$REPO_DIR" "$PWD/specs" || exit 1
 
 # 2. Parse Source of Truth
 # One model per line. Comments, blank lines and stray spaces are ignored, and a
@@ -54,7 +46,7 @@ readarray -t DESIRED_MODELS < <(
 readarray -t SPEC_MODELS < <(./build_specs.sh --list)
 
 # 3. Get Current Local Models
-readarray -t CURRENT_MODELS < <(sudo docker exec "$CONTAINER_NAME" ollama list | tail -n +2 | awk '{ print $1 }')
+readarray -t CURRENT_MODELS < <(ollama_cmd list | tail -n +2 | awk '{ print $1 }')
 
 # --- STAGE 1: USER INPUT (Deletions) ---
 DELETION_QUEUE=()
@@ -73,7 +65,7 @@ echo -e "\n--- Starting Sync Operations ---"
 # Handle Deletions first
 for target in "${DELETION_QUEUE[@]}"; do
     echo "Removing: $target..."
-    sudo docker exec "$CONTAINER_NAME" ollama rm "$target"
+    ollama_cmd rm "$target"
 done
 
 # Handle Sequential Downloads
@@ -84,7 +76,7 @@ for model in "${DESIRED_MODELS[@]}"; do
         continue
     fi
     echo -e "\n[ SYNC ] Pulling new model: $model"
-    sudo docker exec "$CONTAINER_NAME" ollama pull "$model" || FAILED+=("$model")
+    ollama_cmd pull "$model" || FAILED+=("$model")
 done
 
 # --- STAGE 3: CUSTOM MODELS ---

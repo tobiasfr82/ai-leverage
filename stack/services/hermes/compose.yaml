@@ -11,6 +11,10 @@ services:
       # This PC only. Open WebUI uses http://hermes:8642/v1 over the shared
       # network. HERMES_PORT in .env changes the port on this PC.
       - "127.0.0.1:${HERMES_PORT:-8642}:8642"
+    labels:
+      # What manage.sh shows while it runs: the address apps such as Open WebUI
+      # use, not a web page. You chat with Hermes through hermes -> chat.
+      ai-leverage.url: "http://localhost:${HERMES_PORT:-8642}/v1 (API)"
     volumes:
       # Hermes's own settings, memory, skills and chat history
       - ./data:/opt/data

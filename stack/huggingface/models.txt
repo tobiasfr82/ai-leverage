@@ -19,6 +19,10 @@ unsloth/Qwen3.6-35B-A3B-NVFP4
 # https://huggingface.co/prism-ml/Ternary-Bonsai-27B-gguf
 prism-ml/Ternary-Bonsai-27B-gguf
 
+# Qwen 3.8-27B
+# https://huggingface.co/cyankiwi/Qwen3.8-27B-AWQ-INT4
+cyankiwi/Qwen3.8-27B-AWQ-INT4
+
 # ================= HUGGING FACE GATED MODELS =================
 # You need a Hugging face access token added to the .env to be able to sync these.
 

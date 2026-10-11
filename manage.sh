@@ -354,4 +354,8 @@ main_menu() {
   done
 }
 
+# Installs from before stack/ was split into groups keep their settings and data
+# in the old folders until this moves them. It does nothing once they're moved.
+"$SCRIPT_DIR/migrate-stack-layout.sh" || exit 1
+
 main_menu

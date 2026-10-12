@@ -1,10 +1,18 @@
 # ================= HUGGING FACE MODELS =================
-# For vLLM and SGLang: models in .safetensors format that fit a 32 GB GPU
-# (RTX 5090) with room left for the conversation. The size after each name is
-# the download, which is also roughly what the model takes in VRAM.
-# GGUF models are for Ollama: add them to stack/downloaders/ollama/models.txt.
+# Two kinds of lines:
+#   organization/model        the model in .safetensors format, for vLLM and SGLang
+#   organization/model:size   one size of a GGUF model, for llama.cpp, e.g.
+#                             unsloth/gpt-oss-120b-GGUF:Q4_K_M
+# A GGUF model's page holds many sizes, so its line names the one to download.
+# Q4_K_M is the usual choice, Q8_0 is better and nearly twice as big. If a size
+# doesn't exist, sync_models lists the ones that do.
 # Mark models that need an access token in .env with GATED|, e.g.
 # GATED|org/model. None of the models below needs one.
+
+# ================= FOR vLLM AND SGLang =================
+# Models that fit a 32 GB GPU (RTX 5090) with room left for the conversation.
+# The size after each name is the download, which is also roughly what the
+# model takes in VRAM.
 
 # --- Gemma 4 31B ---
 
@@ -42,3 +50,34 @@ deepreinforce-ai/Ornith-1.0-9B
 # Ornith 1.0 35B NVFP4: better (22 GB)
 # https://huggingface.co/sakamakismile/Ornith-1.0-35B-NVFP4
 sakamakismile/Ornith-1.0-35B-NVFP4
+
+# ================= FOR llama.cpp (GGUF) =================
+# llama.cpp keeps what doesn't fit on the GPU in the PC's memory, so a model can
+# be bigger than the GPU: the GPU and the PC's memory together must hold it,
+# with room to spare. The more of it sits in the PC's memory, the slower it
+# runs, least so for MoE models. Remove the # in front of a line to download it.
+
+# Gemma 4 E4B IT, also reads images: small, for a first test (6 GB)
+# https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF
+#unsloth/gemma-4-E4B-it-GGUF:Q4_K_M
+
+# Qwen3.6 35B-A3B at Q8_0, also reads images: the same model as the NVFP4 one
+# above, at higher quality. MoE, so it stays fast with part of it in the PC's
+# memory (38 GB)
+# https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF
+#unsloth/Qwen3.6-35B-A3B-GGUF:Q8_0
+
+# gpt-oss 120B by OpenAI: MoE, about twice the GPU's size. Needs 64 GB of PC
+# memory besides the GPU (63 GB)
+# https://huggingface.co/unsloth/gpt-oss-120b-GGUF
+#unsloth/gpt-oss-120b-GGUF:Q4_K_M
+
+# Qwen3.8 Flash Next: 177B MoE that uses 6B per word, also reads images. Needs
+# 96 GB of PC memory besides a 32 GB GPU, with vLLM and SGLang stopped: about
+# 26 GB of it goes on the GPU and 68 GB to the PC's memory. 29 GB of that is a
+# lookup table that each word only reads a few rows of (95 GB)
+# https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF
+unsloth/Qwen3.8-Flash-Next-GGUF:UD-IQ4_XS
+
+# Smaller version of Qwen3.8-Flash-Next that could allow for bigger context windows ex. 128k–256k context
+unsloth/Qwen3.8-Flash-Next-GGUF:UD-IQ3_XXS

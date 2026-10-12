@@ -3,7 +3,7 @@
 A bash & Python-native framework for running large language models locally with Docker.
 
 ## Overview
-AI-Leverage runs a private AI stack on your own PC: a chat interface, three engines that
+AI-Leverage runs a private AI stack on your own PC: a chat interface, four engines that
 run the models, a document reader and an AI agent, all in Docker and all talking to each
 other out of the box. One menu (`manage.sh`) starts, stops and updates everything, and plain text lists
 decide which models get downloaded.
@@ -41,7 +41,8 @@ of your files Hermes can change.
           │            ┌───────────┘   └─────────┐                │
      ┌────▼────┐  ┌────▼────┐            ┌───────▼───────┐   ┌────▼────┐
      │ Ollama  ◄──┤ Hermes  │ the agent  │ vLLM / SGLang │   │ Docling │  (its models ship
-     └────┬────┘  └────┬────┘            └───────┬───────┘   └─────────┘   inside the image)
+     │         │  │         │            │  / llama.cpp  │   │         │   inside the image)
+     └────┬────┘  └────┬────┘            └───────┬───────┘   └─────────┘
           │            ▼                         │
           │       your notes                     │
    models/ollama                         models/huggingface
@@ -59,6 +60,11 @@ of your files Hermes can change.
   and locked down the same way. Some models run better on one, some on the other. Pick the
   model with **sglang → set_model**, and run vLLM or SGLang, not both. See
   [stack/engines/sglang/README.md](stack/engines/sglang/README.md).
+- **llama.cpp** runs models bigger than the GPU: what doesn't fit in the GPU's memory stays
+  in the PC's memory, which works best for MoE models such as gpt-oss 120B. It runs GGUF
+  models from the same Hugging Face downloader, listed with their size, such as
+  `unsloth/gpt-oss-120b-GGUF:Q4_K_M`, and switches between them like Ollama: pick one in
+  Open WebUI. See [stack/engines/llamacpp/README.md](stack/engines/llamacpp/README.md).
 - **Docling** turns uploaded PDFs and Office files into text Open WebUI can search.
 - **Hermes** is an AI agent: it thinks with Ollama's models and reads, writes and links the
   files in one folder of yours, such as an Obsidian vault. Chat with it in the terminal
@@ -97,12 +103,16 @@ the old folders, such as `stack/openwebui`, to the new ones, such as
 `stack/services/openwebui`.
 
 ## 💻 Hardware
-- **Linux with an NVIDIA GPU.** Ollama, vLLM, SGLang and Docling run on the GPU. Open
-  WebUI does not need one.
+- **Linux with an NVIDIA GPU.** Ollama, vLLM, SGLang, llama.cpp and Docling run on the
+  GPU. Open WebUI does not need one.
 - **The services size themselves to your GPU.** Ollama picks its context size (how much
   text a model can keep in mind) from the VRAM: 32k tokens on a 32 GB card, enough for
   chats and documents. vLLM and SGLang fit as much context as the memory they are given
-  holds.
+  holds. llama.cpp gives every model 64k and fits the model around that.
+- **The PC's own memory (RAM) counts for llama.cpp.** It keeps what doesn't fit on the
+  GPU there, so the GPU and the RAM together must hold a model, with room to spare. With
+  32 GB of VRAM and 64 GB of RAM or more, MoE models of about 120B, such as gpt-oss 120B,
+  run at a usable speed.
 - **Agents need a bigger context.** Hermes Agent needs at least 64k, and VS Code's agent
   mode fills context quickly. The `agent/...` models that **downloaders → ollama →
   sync_models** builds from `stack/downloaders/ollama/specs/` have 128k, and
@@ -119,8 +129,10 @@ the old folders, such as `stack/openwebui`, to the new ones, such as
   plus room for the conversation.
 - **vLLM and SGLang each claim most of the GPU's memory when they start** (vLLM 85%,
   SGLang what it works out for your card). Run only one of them, and stop it while you use
-  Ollama's larger models, or lower `VRAM_LIMIT` in its `.env`. Downloading models doesn't
-  use the GPU, so it's fine while either runs.
+  Ollama's larger models or llama.cpp, or lower `VRAM_LIMIT` in its `.env`. llama.cpp takes
+  what is free when it loads a model, leaves 4 GB for Docling and document search, and
+  unloads the model after 30 minutes without a chat. Downloading models doesn't use the
+  GPU, so it's fine while any of them runs.
 - **Storage:** the full model lists take several hundred GB. To keep them on another disk,
   make `models/` a link to it before the first download:
   `ln -s /path/to/big/disk/ai-models models`.
@@ -131,14 +143,15 @@ Containers reach each other by name over it, and by default nothing is reachable
 outside this PC.
 `bootstrap.sh` creates the network, and `manage.sh` creates it if it is missing.
 
-| Service    | From other containers    | From this PC                               |
-| ---------- | ------------------------ | ------------------------------------------ |
-| Open WebUI | `http://openwebui:8080`  | `http://localhost:3000`                    |
-| Ollama     | `http://ollama:11434`    | `http://localhost:11434`                   |
-| vLLM       | `http://vllm:8000/v1`    | `http://localhost:8000/v1`                 |
-| SGLang     | `http://sglang:30000/v1` | `http://localhost:30000/v1`                |
-| Docling    | `http://docling:5001`    | `http://localhost:5001` (web UI at `/ui`)  |
-| Hermes     | `http://hermes:8642/v1`  | `http://localhost:8642/v1` (needs its key) |
+| Service    | From other containers     | From this PC                                   |
+| ---------- | ------------------------- | ---------------------------------------------- |
+| Open WebUI | `http://openwebui:8080`   | `http://localhost:3000`                        |
+| Ollama     | `http://ollama:11434`     | `http://localhost:11434`                       |
+| vLLM       | `http://vllm:8000/v1`     | `http://localhost:8000/v1`                     |
+| SGLang     | `http://sglang:30000/v1`  | `http://localhost:30000/v1`                    |
+| llama.cpp  | `http://llamacpp:8080/v1` | `http://localhost:8080` (chat page; API `/v1`) |
+| Docling    | `http://docling:5001`     | `http://localhost:5001` (web UI at `/ui`)      |
+| Hermes     | `http://hermes:8642/v1`   | `http://localhost:8642/v1` (needs its key)     |
 
 - **Every port is published on `127.0.0.1` (this PC only).** Docker's published ports bypass
   host firewalls such as `ufw`, so this binding is what keeps them private.
@@ -147,8 +160,8 @@ outside this PC.
 - **Only services with their own login can be opened to your network.** For Open WebUI, see
   [Opening it to your home network](stack/services/openwebui/README.md#opening-it-to-your-home-network):
   a quick check of the account settings, then one setting in a local `.env`. Ollama, vLLM,
-  SGLang and Docling have no login, so they stay on this PC. So does Hermes, because it can
-  change your files.
+  SGLang, llama.cpp and Docling have no login, so they stay on this PC. So does Hermes,
+  because it can change your files.
 - **Personal settings stay out of git.** IP addresses, domains and tokens belong in a `.env`
   file next to the service's `compose.yaml`; `.env` files are git-ignored.
 - **After changing a `compose.yaml` or `.env`, use Start** in `manage.sh` (or
@@ -164,7 +177,7 @@ outside this PC.
 - **`downloaders/`** get models onto this PC. Each one fills `models/<its name>` from its
   `models.txt`, and works without an engine running.
 - **`engines/`** run the models. Each one reads a folder in `models/` and downloads nothing
-  itself. An engine that runs Hugging Face models, like vLLM or SGLang, reads
+  itself. An engine that runs Hugging Face models, like vLLM, SGLang or llama.cpp, reads
   `models/huggingface`, so it needs no downloader of its own.
 - **`services/`** are what you use. They reach the engines over the shared network.
 
@@ -181,7 +194,7 @@ Put a new folder in the group that fits, and `manage.sh` finds it on its own:
 - **While it runs, the menu shows where to open it:** the first port its `compose.yaml`
   publishes, as `http://localhost:<port>`. When that isn't the whole story, write what the
   menu should show in an `ai-leverage.url` label in `compose.yaml`: Docling's points at its
-  web UI at `/ui`, and the engines' and Hermes's say `(API)`, because those are
+  web UI at `/ui`, and most engines' and Hermes's say `(API)`, because those are
   addresses for apps, not web pages.
 - **An `ai-leverage.info` label adds a line under it while it runs,** about what it runs.
   vLLM and SGLang use it to show their model, as `model: ${HUGGINGFACE_MODEL}`.

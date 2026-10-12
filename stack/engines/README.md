@@ -3,21 +3,35 @@
 Run the models. Each engine reads the models a downloader put in `models/`, and answers the
 services over the shared `ai-leverage` network.
 
-| Engine    | Runs models from     | Other containers use     | This PC                     |
-| --------- | -------------------- | ------------------------ | --------------------------- |
-| `ollama/` | `models/ollama`      | `http://ollama:11434`    | `http://localhost:11434`    |
-| `vllm/`   | `models/huggingface` | `http://vllm:8000/v1`    | `http://localhost:8000/v1`  |
-| `sglang/` | `models/huggingface` | `http://sglang:30000/v1` | `http://localhost:30000/v1` |
+| Engine      | Runs models from                      | Other containers use      | This PC                     |
+| ----------- | ------------------------------------- | ------------------------- | --------------------------- |
+| `ollama/`   | `models/ollama`                       | `http://ollama:11434`     | `http://localhost:11434`    |
+| `vllm/`     | `models/huggingface` (`.safetensors`) | `http://vllm:8000/v1`     | `http://localhost:8000/v1`  |
+| `sglang/`   | `models/huggingface` (`.safetensors`) | `http://sglang:30000/v1`  | `http://localhost:30000/v1` |
+| `llamacpp/` | `models/huggingface` (GGUF)           | `http://llamacpp:8080/v1` | `http://localhost:8080`     |
+
+Which one to use:
+
+- **Ollama** for everyday use: easy model switching, many models.
+- **vLLM or SGLang** for speed, with one model that fits the GPU. Some models run better on
+  one, some on the other.
+- **llama.cpp** for models bigger than the GPU: what doesn't fit stays in the PC's memory.
+  It switches models like Ollama, from Open WebUI's model list.
 
 The engines share the GPU. vLLM and SGLang each claim most of its memory when they start,
-so run only one of them at a time, and stop it while you use Ollama's larger models; see
-[Hardware](../../README.md#-hardware).
+so run only one of them at a time, and stop it while you use Ollama's larger models or
+llama.cpp. llama.cpp takes what is free when it loads a model and unloads it after 30
+minutes without a chat; see [Hardware](../../README.md#-hardware).
 
-## vLLM and SGLang run only what is downloaded
+## vLLM, SGLang and llama.cpp run only what is downloaded
 
-Both read `models/huggingface` read-only and never go online, so they can't change your
-downloads and every file in there stays yours. In exchange, a model only runs once
-**downloaders → huggingface → sync_models** has fetched all of it. Their **set_model**
-shows what to do: it lists models from `models.txt` that aren't downloaded yet, and marks a
-download that lacks something, for example `(missing: chat template)`. Run sync_models to
-fetch it.
+All three read `models/huggingface` read-only and never go online, so they can't change
+your downloads and every file in there stays yours. In exchange, a model only runs once
+**downloaders → huggingface → sync_models** has fetched all of it. Each one picks out the
+kind of model it can run, so they share the folder without seeing each other's models.
+
+- vLLM's and SGLang's **set_model** shows what to do: it lists models from `models.txt` that
+  aren't downloaded yet, and marks a download that lacks something, for example
+  `(missing: chat template)`. Run sync_models to fetch it.
+- llama.cpp's **list_models** does the same for GGUF models. Restart llama.cpp after a
+  download, because it reads its list of models when it starts.

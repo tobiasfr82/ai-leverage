@@ -1,8 +1,8 @@
 #!/bin/bash
 # ai-leverage/src/bash/pick-huggingface-model.sh
 # Pick which downloaded Hugging Face model an engine serves. Every engine that
-# runs Hugging Face models (vLLM, SGLang) calls this from its own set_model.sh,
-# inside its own folder. The choice is saved in that folder's .env
+# runs one .safetensors model at a time (vLLM, SGLang) calls this from its own
+# set_model.sh, inside its own folder. The choice is saved in that folder's .env
 # (git-ignored), and the engine can be restarted with it right away.
 # The engines never go online, so the list also shows what a download is
 # missing, and which models in the downloader's models.txt aren't here yet.
@@ -63,8 +63,8 @@ missing_parts() {
     echo "${missing#, }"
 }
 
-# Downloads with .safetensors weights: GGUF-only downloads are for Ollama. The
-# engines load the version refs/main points at.
+# Downloads with .safetensors weights: GGUF-only downloads are for llama.cpp.
+# The engines load the version refs/main points at.
 models=()
 labels=()
 missing_of=()
@@ -84,7 +84,8 @@ if [ -d "$MODELS_DIR" ]; then
     done < <(find "$MODELS_DIR" -maxdepth 1 -mindepth 1 -type d -name "models--*" -print0 | sort -z)
 fi
 
-# Models the downloader's list asks for that aren't here yet
+# Models the downloader's list asks for that aren't here yet. Lines with a
+# size ("org/model:Q4_K_M") are GGUF models for llama.cpp, not for this engine.
 not_downloaded=()
 if [ -f "$MODELS_LIST" ]; then
     while read -r line || [ -n "$line" ]; do
@@ -92,6 +93,7 @@ if [ -f "$MODELS_LIST" ]; then
         line="$(echo "$line" | tr -d ' \r\t')"
         line="${line##*|}"
         [ -z "$line" ] && continue
+        [[ "$line" == *:* ]] && continue
         [[ " ${models[*]} " == *" $line "* ]] || not_downloaded+=("$line")
     done < "$MODELS_LIST"
 fi

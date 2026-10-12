@@ -1,7 +1,7 @@
 services:
   open-webui:
     # The standard image, without a GPU: the heavy work (chat, embeddings,
-    # reading documents) happens in Ollama, vLLM, SGLang and Docling.
+    # reading documents) happens in Ollama, vLLM, SGLang, llama.cpp and Docling.
     image: ghcr.io/open-webui/open-webui:main
     container_name: openwebui
     restart: unless-stopped
@@ -15,12 +15,12 @@ services:
       # --- Core API Integrations ---
       # Only used on first start. After that Open WebUI keeps its own copy in
       # its database; change these under Admin Panel > Settings instead.
-      # Chat models: Ollama, plus vLLM or SGLang when they run, plus Hermes
-      # once hermes -> connect_openwebui has saved Hermes's key in .env. The
-      # keys go in the same order as the addresses; the engines need none.
+      # Chat models: Ollama, plus vLLM, SGLang or llama.cpp when they run, plus
+      # Hermes once hermes -> connect_openwebui has saved Hermes's key in .env.
+      # The keys go in the same order as the addresses; the engines need none.
       - 'OLLAMA_BASE_URL=http://ollama:11434'
-      - 'OPENAI_API_BASE_URLS=http://vllm:8000/v1;http://sglang:30000/v1${HERMES_API_KEY:+;http://hermes:8642/v1}'
-      - 'OPENAI_API_KEYS=;${HERMES_API_KEY:+;${HERMES_API_KEY:-}}'
+      - 'OPENAI_API_BASE_URLS=http://vllm:8000/v1;http://sglang:30000/v1;http://llamacpp:8080/v1${HERMES_API_KEY:+;http://hermes:8642/v1}'
+      - 'OPENAI_API_KEYS=;;${HERMES_API_KEY:+;${HERMES_API_KEY:-}}'
       # Reading uploaded documents
       - 'CONTENT_EXTRACTION_ENGINE=docling'
       - 'DOCLING_SERVER_URL=http://docling:5001'

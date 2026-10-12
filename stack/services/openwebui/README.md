@@ -1,7 +1,8 @@
 # Open WebUI
 
 The chat interface for the stack, at `http://localhost:3000` on this PC. It talks to Ollama,
-vLLM, SGLang and Docling over the shared `ai-leverage` network (see the main README).
+vLLM, SGLang, llama.cpp and Docling over the shared `ai-leverage` network (see the main
+README).
 
 ## Fresh install: nothing to configure
 
@@ -11,6 +12,7 @@ from the environment variables in `compose.yaml`. They are pre-set to:
 - use Ollama for chat models (`http://ollama:11434`)
 - also list vLLM's model while vLLM runs (`http://vllm:8000/v1`)
 - also list SGLang's model while SGLang runs (`http://sglang:30000/v1`)
+- also list llama.cpp's GGUF models while llama.cpp runs (`http://llamacpp:8080/v1`)
 - also list Hermes as `hermes-agent` (`http://hermes:8642/v1`), if
   **hermes → connect_openwebui** has saved Hermes's key before this first start
 - read uploaded documents with Docling (`http://docling:5001`)
@@ -38,6 +40,7 @@ Installs from before the shared network reach Ollama and Docling through
 | Connections → Ollama API                | `http://ollama:11434` (press verify)     |
 | Connections → OpenAI API (optional)     | `http://vllm:8000/v1`, no key, for vLLM  |
 | Connections → OpenAI API (optional)     | `http://sglang:30000/v1`, no key, for SGLang |
+| Connections → OpenAI API (optional)     | `http://llamacpp:8080/v1`, no key, for llama.cpp |
 | Connections → OpenAI API (optional)     | `http://hermes:8642/v1` for Hermes, key from **hermes → connect_openwebui** |
 | Documents → Content Extraction Engine   | Docling, server URL `http://docling:5001` |
 | Documents → Embedding (Ollama) URL      | `http://ollama:11434`                    |
@@ -45,8 +48,8 @@ Installs from before the shared network reach Ollama and Docling through
 
 The Docling URL field only appears once **Docling** is selected as the extraction engine.
 
-The same goes for engines added to the stack after your first start, such as SGLang: add
-their connection here by hand. Open WebUI lists their model while they run.
+The same goes for engines added to the stack after your first start, such as SGLang or
+llama.cpp: add their connection here by hand. Open WebUI lists their models while they run.
 
 ## Back up before updates or big changes
 
@@ -62,8 +65,9 @@ To restore, stop Open WebUI and copy the backup back over `data/webui.db`.
 ## Opening it to your home network
 
 By default only this PC can open Open WebUI. To use it from a laptop or phone on the same
-network, follow these steps. Only Open WebUI gets opened: Ollama, vLLM, SGLang and Docling
-have no login, so they stay private and Open WebUI reaches them over the shared network.
+network, follow these steps. Only Open WebUI gets opened: Ollama, vLLM, SGLang, llama.cpp
+and Docling have no login, so they stay private and Open WebUI reaches them over the shared
+network.
 
 ### 1. Check who can get in
 

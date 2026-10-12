@@ -15,7 +15,19 @@ decide which models get downloaded.
 ```
 
 The menu lists everything in the order you need it: **downloaders** get models onto this PC,
-**engines** run them, and **services** are what you use.
+**engines** run them, and **services** are what you use. At the top it shows what the PC
+has to spare, as of when the menu was drawn:
+
+```text
+Disk   4.7 TB free / 7.2 TB · models use 969 GB
+RAM    67 GB free / 92 GB
+GPU    0% busy · VRAM 27.1 GB used / 31.8 GB · 14 W · 34°C
+```
+
+**Disk** is the drive `models/` is on. A number turns yellow or red when the disk is nearly
+full, RAM runs low, or the GPU gets hot. **r** refreshes these numbers and the services'
+status. **m** opens a live monitor that also shows which engine uses how much of the GPU's
+memory, the CPU, and how fast a download runs.
 
 1. Run **downloaders → ollama → sync_models** to download the models in
    `stack/downloaders/ollama/models.txt`. That list is large and made for a 32 GB GPU, so

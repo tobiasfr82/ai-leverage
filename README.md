@@ -3,7 +3,7 @@
 A bash & Python-native framework for running large language models locally with Docker.
 
 ## Overview
-AI-Leverage runs a private AI stack on your own PC: a chat interface, two engines that
+AI-Leverage runs a private AI stack on your own PC: a chat interface, three engines that
 run the models, a document reader and an AI agent, all in Docker and all talking to each
 other out of the box. One menu (`manage.sh`) starts, stops and updates everything, and plain text lists
 decide which models get downloaded.
@@ -37,22 +37,28 @@ of your files Hermes can change.
                              │ Open WebUI  │  chat interface
                              └─┬───┬───┬──┬┘
        chat + embeddings       │   │   │  │   reading uploaded documents
-          ┌────────────────────┘   │   │  └─────────────────────┐
-          │            ┌───────────┘   └───────┐                │
-     ┌────▼────┐  ┌────▼────┐             ┌────▼────┐      ┌────▼────┐
-     │ Ollama  ◄──┤ Hermes  │ the agent   │  vLLM   │      │ Docling │  (its models ship
-     └────┬────┘  └────┬────┘             └────┬────┘      └─────────┘   inside the image)
-          │            ▼                       │
-          │       your notes                   │
-   models/ollama                       models/huggingface
-          ▲                                    ▲
- downloaders → ollama               downloaders → huggingface
- (models.txt + specs/)              (models.txt)
+          ┌────────────────────┘   │   │  └───────────────────────┐
+          │            ┌───────────┘   └─────────┐                │
+     ┌────▼────┐  ┌────▼────┐            ┌───────▼───────┐   ┌────▼────┐
+     │ Ollama  ◄──┤ Hermes  │ the agent  │ vLLM / SGLang │   │ Docling │  (its models ship
+     └────┬────┘  └────┬────┘            └───────┬───────┘   └─────────┘   inside the image)
+          │            ▼                         │
+          │       your notes                     │
+   models/ollama                         models/huggingface
+          ▲                                      ▲
+ downloaders → ollama                 downloaders → huggingface
+ (models.txt + specs/)                (models.txt)
 ```
 
 - **Ollama** is the everyday engine: easy model switching, many models on one GPU.
 - **vLLM** is the fast engine for one model at a time. Pick the model with
-  `stack/engines/vllm/set_model.sh` (menu: **vllm → set_model**).
+  `stack/engines/vllm/set_model.sh` (menu: **vllm → set_model**). It runs only models the
+  Hugging Face downloader fetched, and never goes online itself; set_model says when a
+  model still needs downloading.
+- **SGLang** is another fast engine for one model at a time, for the same models as vLLM,
+  and locked down the same way. Some models run better on one, some on the other. Pick the
+  model with **sglang → set_model**, and run vLLM or SGLang, not both. See
+  [stack/engines/sglang/README.md](stack/engines/sglang/README.md).
 - **Docling** turns uploaded PDFs and Office files into text Open WebUI can search.
 - **Hermes** is an AI agent: it thinks with Ollama's models and reads, writes and links the
   files in one folder of yours, such as an Obsidian vault. Chat with it in the terminal
@@ -91,11 +97,12 @@ the old folders, such as `stack/openwebui`, to the new ones, such as
 `stack/services/openwebui`.
 
 ## 💻 Hardware
-- **Linux with an NVIDIA GPU.** Ollama, vLLM and Docling run on the GPU. Open WebUI does
-  not need one.
+- **Linux with an NVIDIA GPU.** Ollama, vLLM, SGLang and Docling run on the GPU. Open
+  WebUI does not need one.
 - **The services size themselves to your GPU.** Ollama picks its context size (how much
   text a model can keep in mind) from the VRAM: 32k tokens on a 32 GB card, enough for
-  chats and documents. vLLM fits the longest context into the memory it is given.
+  chats and documents. vLLM and SGLang fit as much context as the memory they are given
+  holds.
 - **Agents need a bigger context.** Hermes Agent needs at least 64k, and VS Code's agent
   mode fills context quickly. The `agent/...` models that **downloaders → ollama →
   sync_models** builds from `stack/downloaders/ollama/specs/` have 128k, and
@@ -110,9 +117,10 @@ the old folders, such as `stack/openwebui`, to the new ones, such as
   `stack/downloaders/ollama/models.txt` and `stack/downloaders/huggingface/models.txt`
   before the first sync. As a rule of thumb, a model needs its download size in VRAM,
   plus room for the conversation.
-- **vLLM claims 85% of the GPU's memory when it starts.** Stop it while you use Ollama's
-  larger models, or lower `VRAM_LIMIT` in `stack/engines/vllm/.env`. Downloading Ollama
-  models doesn't use the GPU, so it's fine while vLLM runs.
+- **vLLM and SGLang each claim most of the GPU's memory when they start** (vLLM 85%,
+  SGLang what it works out for your card). Run only one of them, and stop it while you use
+  Ollama's larger models, or lower `VRAM_LIMIT` in its `.env`. Downloading models doesn't
+  use the GPU, so it's fine while either runs.
 - **Storage:** the full model lists take several hundred GB. To keep them on another disk,
   make `models/` a link to it before the first download:
   `ln -s /path/to/big/disk/ai-models models`.
@@ -123,13 +131,14 @@ Containers reach each other by name over it, and by default nothing is reachable
 outside this PC.
 `bootstrap.sh` creates the network, and `manage.sh` creates it if it is missing.
 
-| Service    | From other containers   | From this PC                                   |
-| ---------- | ----------------------- | ---------------------------------------------- |
-| Open WebUI | `http://openwebui:8080` | `http://localhost:3000`                        |
-| Ollama     | `http://ollama:11434`   | `http://localhost:11434`                       |
-| vLLM       | `http://vllm:8000/v1`   | `http://localhost:8000/v1`                     |
-| Docling    | `http://docling:5001`   | `http://localhost:5001` (web UI at `/ui`)      |
-| Hermes     | `http://hermes:8642/v1` | `http://localhost:8642/v1` (needs its key)     |
+| Service    | From other containers    | From this PC                               |
+| ---------- | ------------------------ | ------------------------------------------ |
+| Open WebUI | `http://openwebui:8080`  | `http://localhost:3000`                    |
+| Ollama     | `http://ollama:11434`    | `http://localhost:11434`                   |
+| vLLM       | `http://vllm:8000/v1`    | `http://localhost:8000/v1`                 |
+| SGLang     | `http://sglang:30000/v1` | `http://localhost:30000/v1`                |
+| Docling    | `http://docling:5001`    | `http://localhost:5001` (web UI at `/ui`)  |
+| Hermes     | `http://hermes:8642/v1`  | `http://localhost:8642/v1` (needs its key) |
 
 - **Every port is published on `127.0.0.1` (this PC only).** Docker's published ports bypass
   host firewalls such as `ufw`, so this binding is what keeps them private.
@@ -137,8 +146,8 @@ outside this PC.
   Containers keep using the addresses in the middle column, so nothing else changes.
 - **Only services with their own login can be opened to your network.** For Open WebUI, see
   [Opening it to your home network](stack/services/openwebui/README.md#opening-it-to-your-home-network):
-  a quick check of the account settings, then one setting in a local `.env`. Ollama, vLLM
-  and Docling have no login, so they stay on this PC. So does Hermes, because it can
+  a quick check of the account settings, then one setting in a local `.env`. Ollama, vLLM,
+  SGLang and Docling have no login, so they stay on this PC. So does Hermes, because it can
   change your files.
 - **Personal settings stay out of git.** IP addresses, domains and tokens belong in a `.env`
   file next to the service's `compose.yaml`; `.env` files are git-ignored.
@@ -155,8 +164,8 @@ outside this PC.
 - **`downloaders/`** get models onto this PC. Each one fills `models/<its name>` from its
   `models.txt`, and works without an engine running.
 - **`engines/`** run the models. Each one reads a folder in `models/` and downloads nothing
-  itself. An engine that runs Hugging Face models, like vLLM, reads `models/huggingface`,
-  so it needs no downloader of its own.
+  itself. An engine that runs Hugging Face models, like vLLM or SGLang, reads
+  `models/huggingface`, so it needs no downloader of its own.
 - **`services/`** are what you use. They reach the engines over the shared network.
 
 A folder keeps what only it uses; something several folders share gets its own folder.
@@ -172,8 +181,10 @@ Put a new folder in the group that fits, and `manage.sh` finds it on its own:
 - **While it runs, the menu shows where to open it:** the first port its `compose.yaml`
   publishes, as `http://localhost:<port>`. When that isn't the whole story, write what the
   menu should show in an `ai-leverage.url` label in `compose.yaml`: Docling's points at its
-  web UI at `/ui`, and Ollama's, vLLM's and Hermes's say `(API)`, because those are
+  web UI at `/ui`, and the engines' and Hermes's say `(API)`, because those are
   addresses for apps, not web pages.
+- **An `ai-leverage.info` label adds a line under it while it runs,** about what it runs.
+  vLLM and SGLang use it to show their model, as `model: ${HUGGINGFACE_MODEL}`.
 - **Folder names are unique across the groups,** except where a downloader and an engine
   belong together, like the two `ollama` folders. Docker names each service after its
   folder, so two services with the same folder name would clash.

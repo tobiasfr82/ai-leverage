@@ -1,7 +1,8 @@
 #!/bin/bash
 # ai-leverage/stack/downloaders/huggingface/sync_models.sh
 # Downloads every model in models.txt into the shared models/huggingface folder,
-# where vLLM finds them. Files already downloaded are skipped, so re-runs are quick.
+# where vLLM and SGLang find them. Files already downloaded are skipped, so
+# re-runs are quick.
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 MODELS_FILE="models.txt"
@@ -13,14 +14,22 @@ if [ -f .env ]; then
     set +a
 fi
 
-# The shared model warehouse. vLLM mounts this same folder, so it is not a
+# The shared model warehouse. The engines mount this same folder, so it is not a
 # setting: to keep models on another disk, make models/ a link to it instead.
 HF_HOME="$(cd ../../.. && pwd)/models/huggingface"
 export HF_HOME
 
+# Whitelist of the file types to download: the weights in .safetensors format,
+# plus the model's small files (settings, tokenizer, chat template). Everything
+# else is skipped, such as older weight formats that can run code when they are
+# opened (.bin, .pth), the model's own Python code, GGUF files and READMEs.
+# HF_INCLUDE in .env replaces this list; "*" downloads everything.
+DEFAULT_INCLUDE="*.safetensors *.json *.jinja *.model *.txt *.tiktoken"
+INCLUDE_LIST="${HF_INCLUDE:-$DEFAULT_INCLUDE}"
+
 # Filters may be separated by spaces or commas: "*.safetensors *.json".
 # 'read -a' splits them without the shell expanding the * itself.
-read -ra INCLUDES <<< "${HF_INCLUDE//,/ }"
+read -ra INCLUDES <<< "${INCLUDE_LIST//,/ }"
 read -ra EXCLUDES <<< "${HF_EXCLUDE//,/ }"
 DOWNLOAD_ARGS=()
 for pattern in "${INCLUDES[@]}"; do DOWNLOAD_ARGS+=(--include "$pattern"); done

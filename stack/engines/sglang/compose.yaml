@@ -1,0 +1,74 @@
+services:
+  sglang:
+    # A fixed SGLang release, in its "runtime" build (the same program without
+    # the developer tools). SGLang ships its fixes only as new releases, so move
+    # up now and then: SGLANG_IMAGE_TAG in .env picks another one.
+    image: lmsysorg/sglang:${SGLANG_IMAGE_TAG:-v0.5.21-runtime}
+    container_name: sglang
+    restart: unless-stopped
+    ports:
+      # This PC only. Other containers use http://sglang:30000/v1 over the
+      # shared network. SGLANG_PORT in .env changes the port on this PC.
+      - "127.0.0.1:${SGLANG_PORT:-30000}:30000"
+    labels:
+      # What manage.sh shows while it runs: the address apps use, not a web page
+      ai-leverage.url: "http://localhost:${SGLANG_PORT:-30000}/v1 (API)"
+      # ...and under it, the model this container was started with
+      ai-leverage.info: "model: ${HUGGINGFACE_MODEL}"
+    volumes:
+      # Models downloaded by stack/downloaders/huggingface, read-only: SGLang
+      # can load them, but never change, delete or add anything there. Not
+      # mounted over /root/.cache/huggingface, because the image keeps files of
+      # its own there.
+      - ../../../models/huggingface/hub:/models/huggingface/hub:ro
+    environment:
+      - HF_HUB_CACHE=/models/huggingface/hub
+      # Never go online for a model: run only what the downloader fetched.
+      # set_model.sh shows what a download is missing.
+      - HF_HUB_OFFLINE=1
+    # SGLang's processes pass data through shared memory, and Docker's default
+    # allowance for that (64 MB) is too small. An allowance of its own keeps it
+    # apart from the rest of the PC (vLLM shares the PC's instead, with
+    # "ipc: host"). It only takes RAM as it fills.
+    shm_size: 16gb
+    # Pick the model with ./set_model.sh, which also creates the admin key that
+    # locks SGLang's management functions. SGLang listens on all of the
+    # container's addresses; the ports line above decides who can reach it.
+    # The two parsers read from the model how it marks its thinking and its
+    # tool calls (agents need those), and do without if they can't tell.
+    # The rest is optional; by default SGLang sizes its memory to the GPU and
+    # allows the longest context the model supports. SGLANG_EXTRA_ARGS in .env
+    # adds any other SGLang option.
+    command: >
+      python3 -m sglang.launch_server
+      --model-path ${HUGGINGFACE_MODEL:?no model chosen yet - run set_model.sh in stack/engines/sglang}
+      --host 0.0.0.0
+      --port 30000
+      --admin-api-key ${SGLANG_ADMIN_API_KEY:?no admin key yet - run set_model.sh in stack/engines/sglang}
+      --reasoning-parser auto
+      --tool-call-parser auto
+      ${CONTEXT_SIZE:+--context-length ${CONTEXT_SIZE:-}}
+      ${VRAM_LIMIT:+--mem-fraction-static ${VRAM_LIMIT:-}}
+      ${SGLANG_EXTRA_ARGS:-}
+    # No env_file, unlike the other engines: .env only fills in the settings
+    # above. SGLang reads some SGLANG_... names for itself (SGLANG_PORT moves
+    # its internal ports), so handing it .env could break it.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+# Shared "ai-leverage" network: other containers reach this service as
+# http://sglang:30000/v1. Created by src/bash/docker-create-network.sh.
+networks:
+  default:
+    name: ai-leverage
+    external: true

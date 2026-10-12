@@ -1,8 +1,8 @@
 # Hugging Face
 
-Downloads the models vLLM serves into the shared `models/huggingface` folder at the top
-of the repo. vLLM reads that same folder, so a model downloaded here shows up in
-`stack/engines/vllm/set_model.sh`.
+Downloads the models vLLM and SGLang serve into the shared `models/huggingface` folder at
+the top of the repo. Both engines read that same folder, so a model downloaded here shows up
+in their `set_model.sh` (menu: **vllm → set_model** and **sglang → set_model**).
 
 | Script             | What it does                                                   |
 | ------------------ | -------------------------------------------------------------- |
@@ -18,12 +18,23 @@ One model per line, as `organization/model` from its huggingface.co address. Mar
 that need an access token with `GATED|`:
 
 ```text
-Qwen/Qwen3.6-27B-FP8
-GATED|google/gemma-4-31B-it
+cyankiwi/Qwen3.8-27B-AWQ-INT4
+GATED|meta-llama/Llama-3.1-8B-Instruct
 ```
 
 The list in the repo fits a 32 GB GPU. Trim it to what your GPU can hold before the first
 sync: a model roughly needs its download size in VRAM, plus room for the conversation.
+GGUF models belong in Ollama's list instead, `stack/downloaders/ollama/models.txt`.
+
+## What gets downloaded
+
+A whitelist decides which of a model's files are downloaded, and everything else is
+skipped. By default that is the weights in `.safetensors` format plus the small files an
+engine needs: the model's settings (`config.json`), its tokenizer and its chat template.
+Skipped are older weight formats that can run code when they are opened (`.bin`, `.pth`),
+the model's own Python code, GGUF files, READMEs and images.
+
+`HF_INCLUDE` in `.env` replaces the whitelist; see `.env.template`.
 
 ## Gated models
 

@@ -85,7 +85,7 @@ if command -v docker &> /dev/null && ! docker compose version &> /dev/null; then
 fi
 
 # --- 3. Check/Install the NVIDIA Container Toolkit ---
-# Ollama, vLLM and Docling run on an NVIDIA GPU. The toolkit is what lets Docker
+# Ollama, vLLM, SGLang and Docling run on an NVIDIA GPU. The toolkit is what lets Docker
 # hand the GPU to them; without it they refuse to start.
 install_nvidia_toolkit() {
     if command -v apt-get &> /dev/null; then
@@ -109,8 +109,8 @@ install_nvidia_toolkit() {
 }
 
 if ! command -v nvidia-smi &> /dev/null; then
-    echo "No NVIDIA driver found (nvidia-smi is missing). Ollama, vLLM and Docling need"
-    echo "an NVIDIA GPU. Install the driver, reboot, and run this script again."
+    echo "No NVIDIA driver found (nvidia-smi is missing). Ollama, vLLM, SGLang and"
+    echo "Docling need an NVIDIA GPU. Install the driver, reboot, and run this script again."
 elif command -v nvidia-ctk &> /dev/null; then
     echo "NVIDIA Container Toolkit is already installed."
 elif ! command -v docker &> /dev/null; then

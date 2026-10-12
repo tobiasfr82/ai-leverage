@@ -12,9 +12,18 @@ services:
     labels:
       # What manage.sh shows while it runs: the address apps use, not a web page
       ai-leverage.url: "http://localhost:${VLLM_PORT:-8000}/v1 (API)"
+      # ...and under it, the model this container was started with
+      ai-leverage.info: "model: ${HUGGINGFACE_MODEL}"
     volumes:
-      # Models downloaded by stack/downloaders/huggingface
-      - ../../../models/huggingface:/root/.cache/huggingface
+      # Models downloaded by stack/downloaders/huggingface, read-only: vLLM can
+      # load them, but never change, delete or add anything there. So the files
+      # stay yours, not root's, and cleaning up never needs sudo.
+      - ../../../models/huggingface/hub:/models/huggingface/hub:ro
+    environment:
+      - HF_HUB_CACHE=/models/huggingface/hub
+      # Never go online for a model: run only what the downloader fetched.
+      # set_model.sh shows what a download is missing.
+      - HF_HUB_OFFLINE=1
     # vLLM's worker processes pass data through shared memory, and Docker's
     # default allowance for that (64 MB) is too small.
     ipc: host

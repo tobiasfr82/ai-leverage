@@ -124,13 +124,16 @@ project_name() {
 # What runs, from one look at Docker. For each Compose project, STATES holds
 # running, restarting or stopped, and URLS where to open it while it runs: its
 # ai-leverage.url label (set in compose.yaml when the address needs more than a
-# port, such as a path), or else the first port it publishes on this PC.
-declare -A STATES URLS
+# port, such as a path), or else the first port it publishes on this PC. INFOS
+# holds its ai-leverage.info label while it runs, a line about what it runs,
+# such as an engine's model.
+declare -A STATES URLS INFOS
 load_states() {
   STATES=()
   URLS=()
-  local project state url ports
-  while IFS='|' read -r project state url ports; do
+  INFOS=()
+  local project state url info ports
+  while IFS='|' read -r project state url info ports; do
     [ -n "$project" ] || continue
     case "$state" in
       running)
@@ -139,6 +142,7 @@ load_states() {
           url="http://localhost:${BASH_REMATCH[1]}"
         fi
         [ -n "$url" ] && URLS[$project]=$url
+        [ -n "$info" ] && INFOS[$project]=$info
         ;;
       restarting)
         [ "${STATES[$project]}" == running ] || STATES[$project]=restarting
@@ -147,7 +151,7 @@ load_states() {
         [ -n "${STATES[$project]}" ] || STATES[$project]=stopped
         ;;
     esac
-  done < <(sudo docker ps --all --format '{{.Label "com.docker.compose.project"}}|{{.State}}|{{.Label "ai-leverage.url"}}|{{.Ports}}' 2> /dev/null)
+  done < <(sudo docker ps --all --format '{{.Label "com.docker.compose.project"}}|{{.State}}|{{.Label "ai-leverage.url"}}|{{.Label "ai-leverage.info"}}|{{.Ports}}' 2> /dev/null)
 }
 
 # A folder's status: [UP], [RESTARTING] (it keeps crashing), [STOPPED], or
@@ -172,6 +176,14 @@ get_url() {
   local project
   project=$(project_name "$1")
   echo "${URLS[${project:-_}]}"
+}
+
+# The line about what a folder's service runs, while it runs (see load_states)
+get_info() {
+  [ -n "$(compose_file "$1")" ] || return
+  local project
+  project=$(project_name "$1")
+  echo "${INFOS[${project:-_}]}"
 }
 
 # Stops every engine and service that runs, after asking. The services stop
@@ -240,12 +252,14 @@ service_menu() {
   while true; do
     # Before clearing the screen, in case sudo asks for your password
     load_states
-    local status_indicator
+    local status_indicator info
     status_indicator="$(get_status "$path") $(get_url "$path")"
+    info=$(get_info "$path")
     local scripts
     mapfile -t scripts < <(list_scripts "$path")
     clear
     echo -e "${BOLD}AI LEVERAGE${NC} > ${YELLOW}${name/\// > }${NC} $status_indicator"
+    [ -n "$info" ] && echo "  └ $info"
     echo -e "--------------------------------------------"
     if $has_compose; then
       echo -e "1) ${GREEN}Start${NC} (up, also applies .env changes)"
@@ -315,7 +329,7 @@ main_menu() {
     echo -e "--------------------------------------------"
     # A heading per group, and its folders under it, with where to open the
     # ones that run. The numbers run on from one group to the next.
-    local groups entry group members dir
+    local groups entry group members dir info
     local items=()
     mapfile -t groups < <(list_groups)
     for entry in "${groups[@]}"; do
@@ -326,6 +340,8 @@ main_menu() {
       for dir in "${members[@]}"; do
         items+=("$dir")
         printf "%2d) ${BOLD}%-14s${NC} %s %s\n" "${#items[@]}" "$(basename "$dir")" "$(get_status "$dir" 12)" "$(get_url "$dir")"
+        info=$(get_info "$dir")
+        [ -n "$info" ] && echo "    └ $info"
       done
       echo
     done

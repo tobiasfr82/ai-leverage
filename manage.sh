@@ -324,8 +324,14 @@ main_menu() {
   while true; do
     # Before clearing the screen, in case sudo asks for your password
     load_states
+    # What the PC has to spare (disk where models/ is, RAM, the GPU), as of
+    # this drawing of the menu. r draws it again with fresh numbers.
+    local system
+    system=$("$SCRIPT_DIR/monitor-system.sh" --summary)
     clear
-    echo -e "${BOLD}AI LEVERAGE STACK MANAGER${NC}"
+    echo -e "${BOLD}AI LEVERAGE STACK MANAGER${NC}   updated $(date +%H:%M:%S)"
+    echo -e "--------------------------------------------"
+    echo -e "$system"
     echo -e "--------------------------------------------"
     # A heading per group, and its folders under it, with where to open the
     # ones that run. The numbers run on from one group to the next.
@@ -353,7 +359,8 @@ main_menu() {
     fi
 
     echo -e "--------------------------------------------"
-    echo -e "m) ${CYAN}Monitor GPU${NC}"
+    echo -e "r) ${CYAN}Refresh${NC} disk, RAM, GPU and service status"
+    echo -e "m) ${CYAN}Monitor system${NC} (live)"
     echo -e "p) ${CYAN}View Docker Ports${NC}"
     echo -e "s) ${RED}Stop all${NC} engines and services"
     echo -e "q) Quit"
@@ -361,7 +368,9 @@ main_menu() {
     read -p "Selection: " choice
 
     if [[ "$choice" == "q" ]]; then clear; exit 0; fi
-    if [[ "$choice" == "m" ]]; then open_helper "monitor-gpu.sh"; fi
+    # Drawing the menu again is all a refresh takes
+    if [[ "$choice" == "r" ]]; then continue; fi
+    if [[ "$choice" == "m" ]]; then open_helper "monitor-system.sh"; fi
     if [[ "$choice" == "p" ]]; then open_helper "docker-list-ports.sh"; fi
     if [[ "$choice" == "s" ]]; then stop_all "${items[@]}"; fi
     if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -le "${#items[@]}" ] && [ "$choice" -gt 0 ]; then

@@ -1,0 +1,73 @@
+services:
+  llamacpp:
+    # A fixed llama.cpp build, in its server version for NVIDIA GPUs: build
+    # b11561 from 2026-10-12, which includes release v0.6.0 (that release has
+    # no image of its own). It's the CUDA 12.8 build, which runs on any driver
+    # from 570 on; the CUDA 13 one (server-cuda13-...) needs a newer driver on
+    # GeForce cards than 580. LLAMACPP_IMAGE_TAG in .env picks another build.
+    image: ghcr.io/ggml-org/llama.cpp:${LLAMACPP_IMAGE_TAG:-server-cuda-b11561}
+    container_name: llamacpp
+    restart: unless-stopped
+    ports:
+      # This PC only. Other containers use http://llamacpp:8080/v1 over the
+      # shared network. LLAMACPP_PORT in .env changes the port on this PC.
+      - "127.0.0.1:${LLAMACPP_PORT:-8080}:8080"
+    labels:
+      # What manage.sh shows while it runs: llama.cpp's own chat page, which
+      # apps reach at /v1
+      ai-leverage.url: "http://localhost:${LLAMACPP_PORT:-8080} (chat page; apps use /v1)"
+      # ...and under it, where its models are picked
+      ai-leverage.info: "models: picked in Open WebUI; list_models shows them"
+    volumes:
+      # Models downloaded by stack/downloaders/huggingface, read-only: llama.cpp
+      # can load the GGUF ones, but never change, delete or add anything there.
+      - ../../../models/huggingface/hub:/models/huggingface/hub:ro
+    environment:
+      # Where llama.cpp looks for downloaded models. It reads that folder the
+      # way the downloader writes it.
+      - HF_HUB_CACHE=/models/huggingface/hub
+    # llama.cpp lists every GGUF model in that folder and loads the one a chat
+    # asks for, one at a time: picking another one unloads the first. It never
+    # goes online for a model (--offline). Each model gets CONTEXT_SIZE tokens
+    # of conversation, and llama.cpp fits the rest to the GPU's free memory,
+    # keeping VRAM_KEEP_FREE MB free for the stack's other GPU users. What
+    # doesn't fit stays in the PC's memory. A model nobody used for
+    # IDLE_UNLOAD_SECONDS is unloaded, which frees the GPU for the other engines.
+    # Web pages from other sites, open in a browser on this PC, can't use it
+    # (--cors-origins localhost); Open WebUI reaches it from its server, so it
+    # isn't affected. LLAMACPP_EXTRA_ARGS in .env adds any other llama-server
+    # option, and wins over the ones above because it comes last. See
+    # .env.template.
+    command: >
+      --host 0.0.0.0
+      --port 8080
+      --offline
+      --cors-origins localhost
+      --models-max 1
+      --ctx-size ${CONTEXT_SIZE:-65536}
+      --fit-target ${VRAM_KEEP_FREE:-4096}
+      --sleep-idle-seconds ${IDLE_UNLOAD_SECONDS:-1800}
+      ${LLAMACPP_EXTRA_ARGS:-}
+    # No env_file, as with SGLang: .env only fills in the settings above.
+    # llama.cpp also reads LLAMA_ARG_... settings from its environment, but the
+    # options above would win over those, so other options go in
+    # LLAMACPP_EXTRA_ARGS.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+# Shared "ai-leverage" network: other containers reach this service as
+# http://llamacpp:8080/v1. Created by src/bash/docker-create-network.sh.
+networks:
+  default:
+    name: ai-leverage
+    external: true

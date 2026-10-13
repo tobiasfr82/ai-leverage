@@ -6,7 +6,8 @@ A bash & Python-native framework for running large language models locally with 
 AI-Leverage runs a private AI stack on your own PC: a chat interface, four engines that
 run the models, a document reader and an AI agent, all in Docker and all talking to each
 other out of the box. One menu (`manage.sh`) starts, stops and updates everything, and plain text lists
-decide which models get downloaded.
+decide which models get downloaded. The same menu installs and updates the desktop apps that go
+with it: Obsidian, VS Code, Claude Code, Claude Desktop and OpenCode.
 
 ## 🚀 Quick start
 ```bash
@@ -26,7 +27,7 @@ GPU    0% busy · VRAM 27.1 GB used / 31.8 GB · 14 W · 34°C
 
 **Disk** is the drive `models/` is on. A number turns yellow or red when the disk is nearly
 full, RAM runs low, or the GPU gets hot. **r** refreshes these numbers and the services'
-status. **m** opens a live monitor that also shows which engine uses how much of the GPU's
+and apps' status. **m** opens a live monitor that also shows which engine uses how much of the GPU's
 memory, the CPU, and how fast a download runs.
 
 1. Run **downloaders → ollama → sync_models** to download the models in
@@ -35,6 +36,9 @@ memory, the CPU, and how fast a download runs.
 2. Start **ollama** under engines, then **docling** and **openwebui** under services.
 3. Open `http://localhost:3000`. On the first visit you create the admin account;
    everything else is pre-set.
+
+Below them, **apps** are programs on this PC itself, outside Docker. Each one has Install,
+Update, Revert, Hold and Uninstall; see [apps/README.md](apps/README.md).
 
 For the AI agent as well, start **hermes** and run **hermes → connect_openwebui** before
 you start **openwebui** for the first time, so Open WebUI lists it too. Read
@@ -91,7 +95,7 @@ of your files Hermes can change.
 | `stack/downloaders/<name>/` | Downloads the models in its `models.txt` into `models/<name>`   |
 | `stack/engines/<name>/`     | Runs the models: `compose.yaml`, settings, and sometimes a script to pick a model |
 | `stack/services/<name>/`    | What you use: the chat interface, the document reader, the agent |
-| `apps/<app>/`               | Install and uninstall scripts for desktop apps (Obsidian, OpenCode) |
+| `apps/<app>/`               | Desktop apps: where each comes from (`app.conf`), and its own scripts |
 | `src/bash/`                 | Helpers that `manage.sh` and `bootstrap.sh` use                 |
 | `models/`                   | Downloaded models (git-ignored)                                 |
 
@@ -207,8 +211,11 @@ Some of the programs would also send things on their own. The stack turns that o
   [its README](stack/services/hermes/README.md#good-to-know) for an existing install.
 - **What you add can go online.** Examples: a key for a cloud model in Open WebUI or
   Hermes, or web search.
-- **The apps in `apps/` are ordinary desktop programs.** OpenCode updates itself and gets
-  its list of models from opencode.ai when it starts. Obsidian checks for updates.
+- **The apps in `apps/` are ordinary desktop programs.** Install and Update go online to
+  their makers' sources. **Claude Code and Claude Desktop work online by design:** what you
+  ask them, and the files they read, go to Anthropic. VS Code sends usage data to Microsoft
+  unless **Telemetry: Telemetry Level** is `off`. OpenCode updates itself and gets its list
+  of models from opencode.ai when it starts. Obsidian checks for updates.
 
 ## 🧩 Adding to the stack
 `stack/` has three groups, and `manage.sh` shows them in this order:
@@ -237,6 +244,8 @@ Put a new folder in the group that fits, and `manage.sh` finds it on its own:
   addresses for apps, not web pages.
 - **An `ai-leverage.info` label adds a line under it while it runs,** about what it runs.
   vLLM and SGLang use it to show their model, as `model: ${HUGGINGFACE_MODEL}`.
+- **A desktop app** goes in `apps/<name>/` with an `app.conf` instead; see
+  [apps/README.md](apps/README.md#adding-an-app).
 - **Folder names are unique across the groups,** except where a downloader and an engine
   belong together, like the two `ollama` folders. Docker names each service after its
   folder, so two services with the same folder name would clash.

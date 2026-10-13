@@ -124,3 +124,8 @@ Open WebUI then reaches it at `http://hermes:<its port>/v1`.
   **hermes → connect_openwebui** again, and update the key in Open WebUI.
 - **Update** in the menu pulls the newest release. Hermes's own `hermes update` does not
   work in a container.
+- **Voice stays on this PC.** When Hermes reads a reply aloud or turns speech into text, it
+  uses Piper and Whisper on this PC, instead of its default of Microsoft's Edge service.
+  This only applies to a new install. Hermes set up before this change keeps its own
+  `data/config.yaml`, so switch it once with
+  `./chat.sh config set tts.provider piper` and `./chat.sh config set stt.provider local`.

@@ -22,6 +22,17 @@ terminal:
   backend: local
   cwd: /workspace
 
+# Voice on this PC: Hermes's built-in default reads replies aloud through
+# Microsoft's Edge service, which gets the text. Piper speaks on this PC; it
+# downloads the voice once on first use (other voices: tts.piper.voice). The
+# local alternatives are kittentts (small, English) and neutts (best sound,
+# slower). Speech you record is turned into text on this PC too, even if a
+# cloud key is added later.
+tts:
+  provider: piper
+stt:
+  provider: local
+
 approvals:
   # Risky commands, such as deleting folders: Hermes judges them itself,
   # refuses the clearly dangerous ones and asks you about the rest.

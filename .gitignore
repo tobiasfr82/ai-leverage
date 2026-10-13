@@ -27,3 +27,6 @@ models/
 # Ignore each service's own data (settings, chats, uploads, keys)
 stack/**/data/
 stack/**/output/
+
+# Ignore each app's own data (revert points, backups)
+apps/**/data/

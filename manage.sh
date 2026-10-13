@@ -6,10 +6,13 @@
 # service, and run the scripts a folder brings along (model downloads and such).
 # A new folder in a group shows up here on its own: a compose.yaml gives it
 # Start/Stop, and every executable *.sh in it becomes a menu entry.
+# Below them, the desktop apps in apps/: a folder with an app.conf gets Install,
+# Update, Revert, Hold and Uninstall, all done by src/bash/app.sh.
 
 # --- Configuration ---
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STACK_DIR="$BASE_DIR/stack"
+APPS_DIR="$BASE_DIR/apps"
 
 # Unified script directory (all helpers moved here)
 SCRIPT_DIR="$BASE_DIR/src/bash"
@@ -21,6 +24,9 @@ STACK_GROUPS=(
   "engines|run the models"
   "services|what you use"
 )
+
+# Room for the longest status, [NOT INSTALLED], so the lists line up
+STATUS_WIDTH=15
 
 # Colors
 RED='\033[0;31m'
@@ -320,6 +326,98 @@ service_menu() {
   done
 }
 
+# The folders in apps/ with an app.conf
+list_apps() {
+  local dir
+  for dir in "$APPS_DIR"/*/; do
+    [ -f "$dir/app.conf" ] && echo "${dir%/}"
+  done
+}
+
+# An app's state, from app.sh without going online: APP_STATE is installed,
+# missing or other (installed some other way, APP_VERSION then says where),
+# APP_HELD is set while it's held, APP_PREVIOUS is the version Revert goes
+# back to. Also its name, where it comes from, and what it is.
+load_app() {
+  IFS='|' read -r APP_STATE APP_VERSION APP_HELD APP_PREVIOUS APP_NAME APP_SOURCE APP_ABOUT \
+    < <("$SCRIPT_DIR/app.sh" "$1" status)
+}
+
+# The loaded app's status: [INSTALLED], [HELD] (installed, and Update skips it),
+# [OTHER INSTALL] (installed some other way), or [NOT INSTALLED]. An optional
+# width pads it, to line statuses up in a list.
+app_status() {
+  local label color
+  case "$APP_STATE" in
+    installed)
+      if [ -n "$APP_HELD" ]; then label="[HELD]"; color=$YELLOW
+      else label="[INSTALLED]"; color=$GREEN; fi
+      ;;
+    other) label="[OTHER INSTALL]"; color=$YELLOW ;;
+    *)     label="[NOT INSTALLED]"; color=$NC ;;
+  esac
+  printf "${color}%-${1:-0}s${NC}" "$label"
+}
+
+app_menu() {
+  local path=$1
+  local name
+  name=$(basename "$path")
+  # The app's actions take 1-5, so its own scripts start at 6
+  local first=6
+
+  while true; do
+    load_app "$path"
+    local scripts
+    mapfile -t scripts < <(list_scripts "$path")
+    clear
+    echo -e "${BOLD}AI LEVERAGE${NC} > ${YELLOW}apps > $name${NC} $(app_status) $APP_VERSION"
+    [ -n "$APP_ABOUT" ] && echo "  └ $APP_ABOUT"
+    echo -e "--------------------------------------------"
+    echo -e "1) ${GREEN}Install${NC} $APP_NAME ($APP_SOURCE)"
+    echo -e "2) ${YELLOW}Update${NC} $APP_NAME to its newest stable release (checks online first)"
+    if [ -n "$APP_PREVIOUS" ]; then
+      echo -e "3) ${CYAN}Revert${NC} $APP_NAME to $APP_PREVIOUS, the version before the last update"
+    else
+      echo -e "3) ${CYAN}Revert${NC} $APP_NAME to the version before the last update (none saved yet)"
+    fi
+    if [ -n "$APP_HELD" ]; then
+      echo -e "4) ${BOLD}Release${NC} the hold on $APP_NAME, so Update updates it again"
+    else
+      echo -e "4) ${BOLD}Hold${NC} $APP_NAME at ${APP_VERSION:-its version}, so Update skips it"
+    fi
+    echo -e "5) ${RED}Uninstall${NC} $APP_NAME (your own files and settings stay)"
+    echo -e "--------------------------------------------"
+    if [ ${#scripts[@]} -gt 0 ]; then
+      local i
+      for i in "${!scripts[@]}"; do
+        echo -e "$((first + i))) ${scripts[$i]%.sh}"
+      done
+      echo -e "--------------------------------------------"
+    fi
+    echo -e "b) Go back"
+    echo -e "q) Quit"
+    echo -e "--------------------------------------------"
+    read -p "Selection: " choice
+
+    case $choice in
+      [Bb]) return ;;
+      [Qq]) clear; exit 0 ;;
+      1) run_here "$SCRIPT_DIR/app.sh" "$path" install ;;
+      2) run_here "$SCRIPT_DIR/app.sh" "$path" update ;;
+      3) run_here "$SCRIPT_DIR/app.sh" "$path" revert ;;
+      4) run_here "$SCRIPT_DIR/app.sh" "$path" "$([ -n "$APP_HELD" ] && echo release || echo hold)" ;;
+      5) run_here "$SCRIPT_DIR/app.sh" "$path" uninstall ;;
+    esac
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge "$first" ] && [ "$choice" -lt $((first + ${#scripts[@]})) ]; then
+      local script=${scripts[$((choice - first))]}
+      echo -e "\n${CYAN}Running apps/$name/$script...${NC}\n"
+      run_here bash -c 'cd "$1" && "./$2"' _ "$path" "$script"
+    fi
+  done
+}
+
 main_menu() {
   while true; do
     # Before clearing the screen, in case sudo asks for your password
@@ -345,12 +443,25 @@ main_menu() {
       printf "${BOLD}%-13s${NC} %s\n\n" "${group^^}" "${entry#*|}"
       for dir in "${members[@]}"; do
         items+=("$dir")
-        printf "%2d) ${BOLD}%-14s${NC} %s %s\n" "${#items[@]}" "$(basename "$dir")" "$(get_status "$dir" 12)" "$(get_url "$dir")"
+        printf "%2d) ${BOLD}%-14s${NC} %s %s\n" "${#items[@]}" "$(basename "$dir")" "$(get_status "$dir" $STATUS_WIDTH)" "$(get_url "$dir")"
         info=$(get_info "$dir")
         [ -n "$info" ] && echo "    └ $info"
       done
       echo
     done
+
+    # The desktop apps, numbered on from the stack
+    local apps
+    mapfile -t apps < <(list_apps)
+    if [ ${#apps[@]} -gt 0 ]; then
+      printf "${BOLD}%-13s${NC} %s\n\n" "APPS" "programs on this PC, outside Docker"
+      for dir in "${apps[@]}"; do
+        items+=("$dir")
+        load_app "$dir"
+        printf "%2d) ${BOLD}%-14s${NC} %s %s\n" "${#items[@]}" "$(basename "$dir")" "$(app_status $STATUS_WIDTH)" "$APP_VERSION"
+      done
+      echo
+    fi
 
     if [ ${#items[@]} -eq 0 ]; then
       echo -e "${RED}Nothing found in $STACK_DIR${NC}"
@@ -359,7 +470,7 @@ main_menu() {
     fi
 
     echo -e "--------------------------------------------"
-    echo -e "r) ${CYAN}Refresh${NC} disk, RAM, GPU and service status"
+    echo -e "r) ${CYAN}Refresh${NC} disk, RAM, GPU, service and app status"
     echo -e "m) ${CYAN}Monitor system${NC} (live)"
     echo -e "p) ${CYAN}View Docker Ports${NC}"
     echo -e "s) ${RED}Stop all${NC} engines and services"
@@ -374,7 +485,8 @@ main_menu() {
     if [[ "$choice" == "p" ]]; then open_helper "docker-list-ports.sh"; fi
     if [[ "$choice" == "s" ]]; then stop_all "${items[@]}"; fi
     if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -le "${#items[@]}" ] && [ "$choice" -gt 0 ]; then
-      service_menu "${items[$((choice-1))]}"
+      dir=${items[$((choice-1))]}
+      if [[ "$dir" == "$APPS_DIR"/* ]]; then app_menu "$dir"; else service_menu "$dir"; fi
     fi
   done
 }

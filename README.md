@@ -183,6 +183,33 @@ outside this PC.
   `src/bash/docker-create-network.sh` and the `networks:` block at the bottom of every
   `stack/*/*/compose.yaml`.
 
+## 🔒 Privacy
+Every model runs on this PC, so your chats, documents and prompts stay here. What goes
+online is what you start yourself: model downloads (huggingface.co, ollama.com) and the
+programs themselves (Docker Hub, GitHub, Quay) on Start or Update.
+
+Some of the programs would also send things on their own. The stack turns that off:
+
+| Program                 | What it would send, and when                                                        | Turned off with                       |
+| ----------------------- | ----------------------------------------------------------------------------------- | ------------------------------------- |
+| vLLM                    | Your hardware, the model type and its settings, at every start and every 10 minutes | `VLLM_NO_USAGE_STATS`, `DO_NOT_TRACK` |
+| Ollama                  | A signed request to ollama.com at every start and every 4 hours                     | `OLLAMA_NO_CLOUD`                     |
+| Open WebUI              | A check on GitHub for a newer version each time it's opened                         | `ENABLE_VERSION_UPDATE_CHECK`         |
+| Hugging Face downloader | A daily check on pypi.org for a newer `hf`                                          | `HF_HUB_DISABLE_UPDATE_CHECK`         |
+
+- **`OLLAMA_NO_CLOUD` also turns off Ollama's cloud models and web search.** To use them,
+  set `OLLAMA_NO_CLOUD=0` in `stack/engines/ollama/.env`.
+- **SGLang, llama.cpp, Docling and Hermes send nothing on their own** as they're set up
+  here. Open WebUI's image ships with its tracking already off. This was checked against
+  each program's source in October 2026; updates can change it.
+- **Hermes's voice features run on this PC.** Its built-in default for reading replies
+  aloud is Microsoft's Edge service, so the stack sets Piper and Whisper instead. See
+  [its README](stack/services/hermes/README.md#good-to-know) for an existing install.
+- **What you add can go online.** Examples: a key for a cloud model in Open WebUI or
+  Hermes, or web search.
+- **The apps in `apps/` are ordinary desktop programs.** OpenCode updates itself and gets
+  its list of models from opencode.ai when it starts. Obsidian checks for updates.
+
 ## 🧩 Adding to the stack
 `stack/` has three groups, and `manage.sh` shows them in this order:
 

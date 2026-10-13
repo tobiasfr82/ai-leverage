@@ -8,6 +8,8 @@
 # Start/Stop, and every executable *.sh in it becomes a menu entry.
 # Below them, the desktop apps in apps/: a folder with an app.conf gets Install,
 # Update, Revert, Hold and Uninstall, all done by src/bash/app.sh.
+# Engines and services get the same Update, Revert and Hold (src/bash/service.sh),
+# and u opens the update overview of all of them (src/bash/check-updates.sh).
 
 # --- Configuration ---
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -245,21 +247,36 @@ ensure_network() {
   fi
 }
 
+# A service's version and update state, from service.sh without going online:
+# SVC_STATE is downloaded or missing, SVC_HELD is set while it's held,
+# SVC_PREVIOUS is the version Revert goes back to
+load_service() {
+  IFS='|' read -r SVC_STATE SVC_VERSION SVC_HELD SVC_PREVIOUS < <("$SCRIPT_DIR/service.sh" "$1" status)
+}
+
 service_menu() {
   local path=$1
   # With its group, e.g. "engines/ollama": ollama is a downloader and an engine
   local name=${path#"$STACK_DIR"/}
+  local short
+  short=$(basename "$path")
   local has_compose=false
   [ -n "$(compose_file "$path")" ] && has_compose=true
-  # Service actions take 1-6, so the folder's own scripts start at 7
+  # Service actions take 1-8, so the folder's own scripts start at 9
   local first=1
-  $has_compose && first=7
+  $has_compose && first=9
 
   while true; do
     # Before clearing the screen, in case sudo asks for your password
     load_states
     local status_indicator info
-    status_indicator="$(get_status "$path") $(get_url "$path")"
+    status_indicator="$(get_status "$path")"
+    if $has_compose; then
+      load_service "$path"
+      [ -n "$SVC_VERSION" ] && status_indicator+=" $SVC_VERSION"
+      [ -n "$SVC_HELD" ] && status_indicator+=" ${YELLOW}(held)${NC}"
+    fi
+    status_indicator+=" $(get_url "$path")"
     info=$(get_info "$path")
     local scripts
     mapfile -t scripts < <(list_scripts "$path")
@@ -271,9 +288,19 @@ service_menu() {
       echo -e "1) ${GREEN}Start${NC} (up, also applies .env changes)"
       echo -e "2) ${RED}Stop${NC} (stop)"
       echo -e "3) ${CYAN}Restart${NC} (restart)"
-      echo -e "4) ${YELLOW}Update${NC} (pull & cleanup)"
-      echo -e "5) ${BOLD}Rebuild${NC} (down & up --build)"
-      echo -e "6) ${BOLD}View logs${NC}"
+      echo -e "4) ${YELLOW}Update${NC} $short to its newest stable release (checks online first)"
+      if [ -n "$SVC_PREVIOUS" ]; then
+        echo -e "5) ${CYAN}Revert${NC} $short to $SVC_PREVIOUS, the version before the last update"
+      else
+        echo -e "5) ${CYAN}Revert${NC} $short to the version before the last update (none saved yet)"
+      fi
+      if [ -n "$SVC_HELD" ]; then
+        echo -e "6) ${BOLD}Release${NC} the hold on $short, so Update updates it again"
+      else
+        echo -e "6) ${BOLD}Hold${NC} $short at ${SVC_VERSION:-its version}, so Update skips it"
+      fi
+      echo -e "7) ${BOLD}Rebuild${NC} (down & up --build)"
+      echo -e "8) ${BOLD}View logs${NC}"
       echo -e "--------------------------------------------"
     fi
     if [ ${#scripts[@]} -gt 0 ]; then
@@ -298,12 +325,11 @@ service_menu() {
         1) ensure_network && run_cmd "$path" "sudo docker compose up -d" ;;
         2) run_cmd "$path" "sudo docker compose stop" ;;
         3) ensure_network && run_cmd "$path" "sudo docker compose restart" ;;
-        4)
-          echo -e "${CYAN}Starting Update & Cleanup...${NC}"
-          # Pulls new images, recreates the container, then wipes the old dangling layers
-          ensure_network && run_cmd "$path" "sudo docker compose pull && sudo docker compose up -d && sudo docker image prune -f"
-          ;;
-        5)
+        # The same steps as in the update overview: service.sh
+        4) run_here "$SCRIPT_DIR/service.sh" "$path" update ;;
+        5) run_here "$SCRIPT_DIR/service.sh" "$path" revert ;;
+        6) run_here "$SCRIPT_DIR/service.sh" "$path" "$([ -n "$SVC_HELD" ] && echo release || echo hold)" ;;
+        7)
           echo -e "\n${RED}${BOLD}REBUILDING:${NC} This deletes and recreates the container."
           read -p "Continue? (y/N): " confirm
           if [[ "$confirm" =~ ^[Yy]$ ]]; then
@@ -313,7 +339,7 @@ service_menu() {
             sleep 1
           fi
           ;;
-        6) open_helper "docker-view-logs.sh" "$path" ;;
+        8) open_helper "docker-view-logs.sh" "$path" ;;
       esac
     fi
 
@@ -418,6 +444,27 @@ app_menu() {
   done
 }
 
+# What the last update check found, without going online: when it ran, and
+# how many updates it found that haven't been installed since
+update_summary() {
+  local dir="${XDG_CACHE_HOME:-$HOME/.cache}/ai-leverage/updates" minutes age count
+  if [ ! -f "$dir/.checked" ]; then
+    echo "(looks online)"
+    return
+  fi
+  minutes=$(( ($(date +%s) - $(stat -c %Y "$dir/.checked")) / 60 ))
+  if [ $minutes -lt 1 ]; then age="just now"
+  elif [ $minutes -lt 60 ]; then age="$minutes min ago"
+  elif [ $minutes -lt 2880 ]; then age="$((minutes / 60)) h ago"
+  else age="$((minutes / 1440)) days ago"; fi
+  count=$(cat "$dir"/* 2> /dev/null | grep -c '^newer|')
+  case $count in
+    0) echo "(last check $age: no updates)" ;;
+    1) echo "(last check $age: ${YELLOW}1 update${NC})" ;;
+    *) echo "(last check $age: ${YELLOW}$count updates${NC})" ;;
+  esac
+}
+
 main_menu() {
   while true; do
     # Before clearing the screen, in case sudo asks for your password
@@ -471,6 +518,7 @@ main_menu() {
 
     echo -e "--------------------------------------------"
     echo -e "r) ${CYAN}Refresh${NC} disk, RAM, GPU, service and app status"
+    echo -e "u) ${YELLOW}Check for updates${NC} of the engines, services and apps $(update_summary)"
     echo -e "m) ${CYAN}Monitor system${NC} (live)"
     echo -e "p) ${CYAN}View Docker Ports${NC}"
     echo -e "s) ${RED}Stop all${NC} engines and services"
@@ -481,6 +529,13 @@ main_menu() {
     if [[ "$choice" == "q" ]]; then clear; exit 0; fi
     # Drawing the menu again is all a refresh takes
     if [[ "$choice" == "r" ]]; then continue; fi
+    if [[ "$choice" == "u" ]]; then
+      # In this window: it asks before it changes anything, and the menu
+      # shows the new versions afterwards. Ctrl+C leaves it, not the menu.
+      trap true INT
+      "$SCRIPT_DIR/check-updates.sh" "${items[@]}"
+      trap - INT
+    fi
     if [[ "$choice" == "m" ]]; then open_helper "monitor-system.sh"; fi
     if [[ "$choice" == "p" ]]; then open_helper "docker-list-ports.sh"; fi
     if [[ "$choice" == "s" ]]; then stop_all "${items[@]}"; fi

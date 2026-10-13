@@ -58,11 +58,11 @@ new releases, so this engine gets less freedom than the others:
   key, so Open WebUI and agents connect as usual.
 - **Models can't run their own code.** SGLang's `--trust-remote-code` stays off unless you
   add it yourself.
-- **The version is fixed,** so **Update** downloads the same release again rather than a
-  newer one. To move up, check
-  [SGLang's releases](https://github.com/sgl-project/sglang/releases), set
-  `SGLANG_IMAGE_TAG` in `.env` to the new version (for example `v0.5.22-runtime`), then run
-  **Update**.
+- **It follows the newest release,** in its `runtime` build. **Update** moves to a new one,
+  **Revert** goes back one, and **Hold** keeps the one you have. A new SGLang release can
+  need a newer NVIDIA driver (the one from October 2026 is built for CUDA 13.0); if it
+  doesn't start after an Update, Revert. To stay on one release for good, set
+  `SGLANG_IMAGE_TAG` in `.env` (see `.env.template`).
 
 ## Settings
 

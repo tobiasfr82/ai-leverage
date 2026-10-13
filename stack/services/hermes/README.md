@@ -122,8 +122,9 @@ Open WebUI then reaches it at `http://hermes:<its port>/v1`.
   Open WebUI you see each step as it happens.
 - **New key?** If you delete `data/`, Hermes creates a new key on its next start. Run
   **hermes → connect_openwebui** again, and update the key in Open WebUI.
-- **Update** in the menu pulls the newest release. Hermes's own `hermes update` does not
-  work in a container.
+- **Update** in the menu downloads the newest release, and **Revert** goes back one.
+  Hermes's own `hermes update` does not work in a container. Revert brings back the
+  program, not `data/`: copy `data/` first if an update worries you.
 - **Voice stays on this PC.** When Hermes reads a reply aloud or turns speech into text, it
   uses Piper and Whisper on this PC, instead of its default of Microsoft's Edge service.
   This only applies to a new install. Hermes set up before this change keeps its own

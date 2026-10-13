@@ -1,7 +1,10 @@
 services:
   docling:
-    # The image ships with the models it needs, so there is nothing to download.
-    image: quay.io/docling-project/docling-serve-cu128:latest
+    # The newest Docling release. The image ships with the models it needs, so
+    # there is nothing to download, and with PyTorch for NVIDIA GPUs. (The
+    # docling-serve-cu128 image stopped getting updates at 1.12.0, in
+    # February 2026; Docling's releases go to this one.)
+    image: quay.io/docling-project/docling-serve:latest
     container_name: docling
     restart: unless-stopped
     ports:

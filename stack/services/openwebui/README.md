@@ -53,7 +53,9 @@ llama.cpp: add their connection here by hand. Open WebUI lists their models whil
 
 ## Back up before updates or big changes
 
-Stop Open WebUI first, so the copy is complete, then:
+A new version of Open WebUI converts its database on its first start, and **Revert** brings
+back the older program, not the older database, which it may not read. So copy the
+database before an Update. Stop Open WebUI first, so the copy is complete, then:
 
 ```bash
 cp -a data/webui.db data/webui.db.bak_$(date +%F)

@@ -1,9 +1,9 @@
 services:
   sglang:
-    # A fixed SGLang release, in its "runtime" build (the same program without
-    # the developer tools). SGLang ships its fixes only as new releases, so move
-    # up now and then: SGLANG_IMAGE_TAG in .env picks another one.
-    image: lmsysorg/sglang:${SGLANG_IMAGE_TAG:-v0.5.21-runtime}
+    # The newest SGLang release, in its "runtime" build (the same program
+    # without the developer tools). Update moves it to each new release, and
+    # Revert goes back one. SGLANG_IMAGE_TAG in .env picks a fixed one instead.
+    image: lmsysorg/sglang:${SGLANG_IMAGE_TAG:-latest-runtime}
     container_name: sglang
     restart: unless-stopped
     ports:

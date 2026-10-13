@@ -15,6 +15,10 @@ services:
       # What manage.sh shows while it runs: the address apps such as Open WebUI
       # use, not a web page. You chat with Hermes through hermes -> chat.
       ai-leverage.url: "http://localhost:${HERMES_PORT:-8642}/v1 (API)"
+      # Where the update check finds the version: the image has no label for
+      # it, so ask Hermes, and its GitHub releases
+      ai-leverage.version-command: "hermes --version"
+      ai-leverage.releases: "NousResearch/hermes-agent"
     volumes:
       # Hermes's own settings, memory, skills and chat history
       - ./data:/opt/data

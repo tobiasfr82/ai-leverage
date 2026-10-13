@@ -2,6 +2,7 @@ services:
   open-webui:
     # The standard image, without a GPU: the heavy work (chat, embeddings,
     # reading documents) happens in Ollama, vLLM, SGLang, llama.cpp and Docling.
+    # "main" is Open WebUI's release branch, the same image as "latest".
     image: ghcr.io/open-webui/open-webui:main
     container_name: openwebui
     restart: unless-stopped
@@ -9,6 +10,10 @@ services:
       # This PC only by default. To let other devices on your network in,
       # set OPENWEBUI_BIND_ADDRESS in a local .env file (see .env.template).
       - "${OPENWEBUI_BIND_ADDRESS:-127.0.0.1}:${OPENWEBUI_PORT:-3000}:8080"
+    labels:
+      # Where the update check finds the version: the image's own label only
+      # says "main", so read it from Open WebUI's package file
+      ai-leverage.version-command: "grep -m1 '\"version\"' /app/package.json"
     volumes:
       - ./data:/app/backend/data
     environment:

@@ -18,7 +18,9 @@ it), **[OTHER INSTALL]** (installed some other way, and where) or **[NOT INSTALL
 - **Stable releases only.** Where a maker offers a stable and a faster channel, the app
   follows stable: Claude Code's stable apt channel, VS Code without Insiders, Obsidian's
   release on Flathub, and OpenCode's GitHub releases without pre-releases.
-- **Nothing here updates on its own.** Update goes online when you choose it.
+- **Nothing here updates on its own.** Update goes online when you choose it. **u** in the
+  main menu checks every app, engine and service at once; see
+  [the main README](../README.md#-updates).
 - **One revert point per app:** the version the last Update replaced, kept in
   `apps/<app>/data/revert/` (git-ignored). For an apt app that's the package file, about
   100 MB, so Revert works even once the maker's repository has dropped that version.
@@ -119,5 +121,8 @@ source file themselves, and two files for one repository make apt fail.
 The same actions work from a terminal:
 
 ```bash
-src/bash/app.sh obsidian update     # install, update, revert, hold, release, uninstall
+src/bash/app.sh obsidian update     # install, update, revert, hold, release, uninstall, check
 ```
+
+The steps of Update, Revert and Hold are in `src/bash/update-common.sh`, which
+`src/bash/service.sh` shares for the engines and services, so they behave the same.

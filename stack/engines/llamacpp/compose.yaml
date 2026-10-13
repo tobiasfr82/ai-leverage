@@ -1,11 +1,12 @@
 services:
   llamacpp:
-    # A fixed llama.cpp build, in its server version for NVIDIA GPUs: build
-    # b11561 from 2026-10-12, which includes release v0.6.0 (that release has
-    # no image of its own). It's the CUDA 12.8 build, which runs on any driver
-    # from 570 on; the CUDA 13 one (server-cuda13-...) needs a newer driver on
-    # GeForce cards than 580. LLAMACPP_IMAGE_TAG in .env picks another build.
-    image: ghcr.io/ggml-org/llama.cpp:${LLAMACPP_IMAGE_TAG:-server-cuda-b11561}
+    # The newest llama.cpp build, in its server version for NVIDIA GPUs.
+    # llama.cpp releases a new build several times a day; Update moves to the
+    # newest, and Revert goes back one. It's the CUDA 12.8 build, which runs on
+    # any driver from 570 on; the CUDA 13 one (server-cuda13) needs a newer
+    # driver on GeForce cards than 580. LLAMACPP_IMAGE_TAG in .env picks a
+    # fixed build instead.
+    image: ghcr.io/ggml-org/llama.cpp:${LLAMACPP_IMAGE_TAG:-server-cuda}
     container_name: llamacpp
     restart: unless-stopped
     ports:

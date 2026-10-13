@@ -28,7 +28,8 @@ GPU    0% busy · VRAM 27.1 GB used / 31.8 GB · 14 W · 34°C
 **Disk** is the drive `models/` is on. A number turns yellow or red when the disk is nearly
 full, RAM runs low, or the GPU gets hot. **r** refreshes these numbers and the services'
 and apps' status. **m** opens a live monitor that also shows which engine uses how much of the GPU's
-memory, the CPU, and how fast a download runs.
+memory, the CPU, and how fast a download runs. **u** checks everything for updates; see
+[Updates](#-updates).
 
 1. Run **downloaders → ollama → sync_models** to download the models in
    `stack/downloaders/ollama/models.txt`. That list is large and made for a 32 GB GPU, so
@@ -97,6 +98,7 @@ of your files Hermes can change.
 | `stack/services/<name>/`    | What you use: the chat interface, the document reader, the agent |
 | `apps/<app>/`               | Desktop apps: where each comes from (`app.conf`), and its own scripts |
 | `src/bash/`                 | Helpers that `manage.sh` and `bootstrap.sh` use                 |
+| `src/python/`               | The update check's registry lookup (`registry.py`)              |
 | `models/`                   | Downloaded models (git-ignored)                                 |
 
 ## ⚙️ Your own settings
@@ -117,6 +119,50 @@ files, but not your `.env` files or each service's `data/` folder (logins, chats
 The first time you run `manage.sh` afterwards, it lists them and offers to move them from
 the old folders, such as `stack/openwebui`, to the new ones, such as
 `stack/services/openwebui`.
+
+## 🔄 Updates
+Every engine, service and app follows its newest **stable** release, and each has the same
+three actions in its menu:
+
+| Action             | What it does                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| **Update**         | Checks online for the newest release, says what it would install, and asks. First it keeps the version it replaces. |
+| **Revert**         | Goes back to that kept version and holds it there, so a release that broke something stays away. |
+| **Hold / Release** | Hold keeps it at its version, so Update skips it. Release ends the hold.                          |
+
+**u** in the main menu opens the overview of all of them: the version on this PC, the
+newest one, and **Update all**, which updates everything that has an update, one after
+another, after asking once. A number picks one to Update, Revert or Hold.
+
+```text
+ENGINES
+ 1) ollama         [UP]            0.40.1       → 0.40.3       update available
+ 2) vllm           [STOPPED]       0.31.0                      up to date
+SERVICES
+ 5) docling        [UP]            1.12.0       → 1.37.0       update available
+APPS
+ 9) vscode         [HELD]          1.140.0      → 1.141.0      held, Update all skips it
+TOOLS updated another way
+    ai-leverage                    a51a585                     3 newer changes on GitHub (get them with: git pull)
+    NVIDIA driver                  580.173.02                  the system manages it; CUDA 13.0
+```
+
+- **Nothing updates on its own, and the check downloads nothing.** It asks each source
+  which version is newest when you open the overview, and the main menu shows what it found
+  last: `u) Check for updates of the engines, services and apps (last check 2 h ago: 3 updates)`.
+- **An engine or service that runs is restarted by its update,** after a warning, because
+  that cuts off open chats and makes an engine load its model again. One that's stopped
+  stays stopped and uses the new version at its next Start.
+- **One earlier version is kept** per engine and service: Docker keeps the image Update
+  replaced under the name `ai-leverage-revert/<name>`, and removes the one before. Notes on
+  it, and the hold, are in the service's `update/` folder (git-ignored). For the apps, see
+  [apps/README.md](apps/README.md).
+- **Revert brings back the program, not its data.** A new version of Open WebUI or Hermes
+  can convert its saved data on its first start, and an older version may not read it
+  anymore. For Open WebUI, [back up first](stack/services/openwebui/README.md#back-up-before-updates-or-big-changes).
+- **The tools are listed, not updated:** ai-leverage itself (`git pull`), uv
+  (`uv self update`), and Docker and the NVIDIA driver, which come with your system's
+  updates.
 
 ## 💻 Hardware
 - **Linux with an NVIDIA GPU.** Ollama, vLLM, SGLang, llama.cpp and Docling run on the
@@ -190,7 +236,9 @@ outside this PC.
 ## 🔒 Privacy
 Every model runs on this PC, so your chats, documents and prompts stay here. What goes
 online is what you start yourself: model downloads (huggingface.co, ollama.com) and the
-programs themselves (Docker Hub, GitHub, Quay) on Start or Update.
+programs themselves (Docker Hub, GitHub, Quay) on Start or Update. The update overview (**u**)
+asks the same places, and GitHub, which version is newest, without downloading anything;
+only when you open it.
 
 Some of the programs would also send things on their own. The stack turns that off:
 
@@ -244,6 +292,12 @@ Put a new folder in the group that fits, and `manage.sh` finds it on its own:
   addresses for apps, not web pages.
 - **An `ai-leverage.info` label adds a line under it while it runs,** about what it runs.
   vLLM and SGLang use it to show their model, as `model: ${HUGGINGFACE_MODEL}`.
+- **Its version comes from its image,** for Update and the update overview. Use a tag that
+  follows the newest stable release, such as `latest`. When the image doesn't carry its
+  version, or carries a wrong one, two labels say where to find it:
+  `ai-leverage.version-command` is a command that prints it, run in the downloaded image
+  without network (Ollama's is `ollama --version`), and `ai-leverage.releases` names the
+  GitHub project whose newest release is the newest version (`ollama/ollama`).
 - **A desktop app** goes in `apps/<name>/` with an `app.conf` instead; see
   [apps/README.md](apps/README.md#adding-an-app).
 - **Folder names are unique across the groups,** except where a downloader and an engine

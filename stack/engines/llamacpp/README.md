@@ -93,12 +93,11 @@ try a model quickly. Like the rest of llama.cpp it has no login, so only this PC
 - **Its tools for agents stay off.** llama.cpp can let a model read and write files and run
   commands (`--tools`). That is off unless you add it yourself, and it shouldn't be added
   here.
-- **The version is fixed,** so **Update** downloads the same build again rather than a
-  newer one. llama.cpp publishes a build for almost every change, and adds support for new
-  models that way. To move up, check
-  [llama.cpp's releases](https://github.com/ggml-org/llama.cpp/releases), set
-  `LLAMACPP_IMAGE_TAG` in `.env` to a newer build's `server-cuda` image (for example
-  `server-cuda-b11600`), then run **Update**. The `server-cuda13` images need a newer
+- **It follows the newest build.** llama.cpp publishes a build for almost every change,
+  several a day, and adds support for new models that way, so the update check finds a new
+  one most days. **Update** when you need one, **Revert** goes back one build, and **Hold**
+  keeps the one you have. To stay on one build for good, set `LLAMACPP_IMAGE_TAG` in `.env`
+  (see `.env.template`). It's the CUDA 12.8 build; the `server-cuda13` images need a newer
   NVIDIA driver than 580.
 
 ## Settings

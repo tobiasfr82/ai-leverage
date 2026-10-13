@@ -9,7 +9,7 @@
 # it replaces, so Revert can go back to it; Hold keeps an app where it is.
 # apps/README.md describes app.conf.
 #
-# Usage: app.sh <app folder or name> <action>
+# Usage: app.sh <app folder or name> <action> [--yes]
 #   install    install it, unless it's there already
 #   update     check for a newer release (online) and install it, after asking
 #   revert     go back to the version before the last update, and hold it there
@@ -20,22 +20,22 @@
 #              state|version|held|previous|name|source|about
 #              state is installed, missing, or other (installed some other
 #              way; version then says where)
+#   check      look online for a newer release, without installing it:
+#              result|installed|newest|note (see update-common.sh)
+#   --yes      don't ask first (the update overview's Update all asks once)
+# The steps of Update, Revert, Hold and the check are in update-common.sh,
+# shared with service.sh, which does the same for the engines and services.
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m'
-
 usage() {
-    sed -n '/^# Usage:/,/^$/s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    sed -n '/^# Usage:/,/^# The steps/s/^# \{0,1\}//p' "${BASH_SOURCE[0]}" | sed '$d'
     exit 1
 }
 
-[ $# -eq 2 ] || usage
+[ $# -eq 2 ] || { [ $# -eq 3 ] && [ "$3" == --yes ]; } || usage
 ACTION=$2
+[ "${3:-}" == --yes ] && ASSUME_YES=true
 
 # A Flatpak --user install, and everything under $HOME, belong to the desktop
 # user, not root. So when started with sudo, run as that user; the steps that
@@ -72,32 +72,12 @@ esac
 # Kept per app, git-ignored: the version Update replaced (and for apt, its
 # package file), and the hold for apps whose source has no hold of its own
 REVERT_DIR="$APP_DIR/data/revert"
-PREVIOUS_FILE="$REVERT_DIR/previous"
 HOLD_FILE="$APP_DIR/data/held"
+NOT_INSTALLED="$APP isn't installed from this menu yet. Install it first."
+CACHE_KEY="apps-$(basename "$APP_DIR")"
 
-# --- Small helpers ---
-
-ask() {
-    local reply
-    read -r -p "$1 (y/N): " reply
-    [[ "$reply" =~ ^[Yy]$ ]]
-}
-
-# The host part of a URL, to say where something comes from
-host_of() {
-    local host=${1#*://}
-    echo "${host%%/*}"
-}
-
-# A path with the home folder written as ~
-tilde() {
-    echo "${1/#$HOME/\~}"
-}
-
-# "a" is a newer version than "b"
-newer() {
-    [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" == "$1" ]
-}
+# shellcheck source=update-common.sh
+. "$BASE_DIR/src/bash/update-common.sh"
 
 # --- Flatpak ---
 # Versions are Flathub commits; Flathub keeps the old ones, so Revert can
@@ -294,6 +274,7 @@ apt_install_ref() {
 apt_hold()    { sudo apt-mark hold "$APT_PACKAGE" > /dev/null; }
 apt_release() { sudo apt-mark unhold "$APT_PACKAGE" > /dev/null; }
 apt_held()    { [ -n "$(apt-mark showhold "$APT_PACKAGE" 2> /dev/null)" ]; }
+apt_hold_note() { echo "   This also keeps \"sudo apt upgrade\" and the system's updater from updating it."; }
 
 # Removes the package, then its repository: the file app.conf names and its
 # key, unless another apt source still uses that key
@@ -333,8 +314,7 @@ script_version() { script_ref; }
 
 # The newest release on GitHub; drafts and pre-releases don't count
 script_latest() {
-    LATEST_REF=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases/latest" 2> /dev/null |
-        sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1)
+    LATEST_REF=$(github_latest "$GITHUB_REPO")
     LATEST_VERSION=$LATEST_REF
     [ -n "$LATEST_REF" ]
 }
@@ -380,8 +360,6 @@ script_other() { :; }
 
 # --- What every app has ---
 
-m() { "${METHOD}_$1" "${@:2}"; }
-
 # Where a copy of the app from somewhere else is, if there is one: a path
 # from REPLACES, its COMMAND on PATH, or what the method knows about
 other_install() {
@@ -405,15 +383,6 @@ state() {
     else
         echo missing
     fi
-}
-
-# The version Update replaced: VERSION to show, REF to install it again
-read_previous() {
-    VERSION="" REF=""
-    [ -f "$PREVIOUS_FILE" ] || return 1
-    # shellcheck source=/dev/null
-    . "$PREVIOUS_FILE"
-    [ -n "$REF" ]
 }
 
 # Removes the copies in REPLACES, once the app is installed from app.conf's
@@ -480,97 +449,6 @@ do_install() {
     echo -e "${GREEN}✓ $APP $(m version) is installed.${NC}"
 }
 
-do_update() {
-    local current
-    if ! m installed; then
-        echo "$APP isn't installed from this menu yet. Install it first."
-        return 1
-    fi
-    current=$(m version)
-    if m held; then
-        echo "$APP is held at $current. Release the hold to update it."
-        return 0
-    fi
-    echo -e "${CYAN}●  Checking for a newer $APP ($(m source))...${NC}"
-    if ! m latest; then
-        echo -e "${RED}✗ Couldn't find out the newest version. See the messages above.${NC}"
-        return 1
-    fi
-    if ! m is_newer; then
-        echo -e "${GREEN}✓ $APP $current is the newest stable release.${NC}"
-        return 0
-    fi
-    local note=""
-    [ "$LATEST_VERSION" == "$current" ] && note=" (a new build of the same version)"
-    echo "   $APP $current → $LATEST_VERSION$note"
-    ask "Update $APP?" || { echo -e "${CYAN}Cancelled.${NC}"; return 0; }
-
-    # The revert point: the version being replaced
-    rm -rf "$REVERT_DIR"
-    mkdir -p "$REVERT_DIR"
-    printf 'VERSION=%q\nREF=%q\n' "$current" "$(m ref)" > "$PREVIOUS_FILE"
-    if ! m save; then
-        echo -e "${YELLOW}Couldn't save $current, so Revert can only go back to it while"
-        echo -e "its source still offers it.${NC}"
-        ask "Update anyway?" || { rm -rf "$REVERT_DIR"; echo -e "${CYAN}Cancelled.${NC}"; return 0; }
-    fi
-
-    if ! m update; then
-        echo -e "${RED}✗ The update failed. See the messages above.${NC}"
-        return 1
-    fi
-    echo -e "${GREEN}✓ $APP is now $(m version). Revert goes back to $current.${NC}"
-}
-
-do_revert() {
-    local current
-    if ! m installed; then
-        echo "$APP isn't installed from this menu."
-        return 1
-    fi
-    if ! read_previous; then
-        echo "There's no earlier version of $APP to go back to. Revert works after an"
-        echo "Update from this menu."
-        return 0
-    fi
-    current=$(m version)
-    echo "$APP goes back from $current to $VERSION, and is held there so Update skips it."
-    ask "Revert $APP?" || { echo -e "${CYAN}Cancelled.${NC}"; return 0; }
-    m held && { m release || return 1; }
-    if ! m install_ref "$REF"; then
-        echo -e "${RED}✗ Couldn't go back to $VERSION. See the messages above.${NC}"
-        return 1
-    fi
-    m hold
-    rm -rf "$REVERT_DIR"
-    echo -e "${GREEN}✓ $APP is back on $(m version) and held there.${NC}"
-    echo "Release the hold once a fixed version is out, then Update."
-}
-
-do_hold() {
-    if ! m installed; then
-        echo "$APP isn't installed from this menu."
-        return 1
-    fi
-    if m held; then
-        echo "$APP is already held at $(m version)."
-        return 0
-    fi
-    m hold || return 1
-    echo -e "${GREEN}✓ $APP stays at $(m version). Update skips it until you release the hold.${NC}"
-    [ "$METHOD" == apt ] && echo "   This also keeps \"sudo apt upgrade\" and the system's updater from updating it."
-    return 0
-}
-
-do_release() {
-    if ! m installed || ! m held; then
-        echo "$APP isn't held."
-        return 0
-    fi
-    m release || return 1
-    echo -e "${GREEN}✓ $APP isn't held anymore. Update can update it again.${NC}"
-}
-
 do_uninstall() {
     local st
     st=$(state)
@@ -591,11 +469,16 @@ do_uninstall() {
         return 1
     fi
     rm -rf "$REVERT_DIR" "$HOLD_FILE"
+    forget_check
     echo -e "${GREEN}✓ $APP is uninstalled.${NC}"
 }
 
 case "$ACTION" in
     status)    do_status ;;
+    check)
+        # Installed some other way: there's nothing of ours to check
+        if [ "$(state)" == other ]; then echo "other|$(other_install)||"; else do_check; fi
+        ;;
     install)   do_install ;;
     update)    do_update ;;
     revert)    do_revert ;;

@@ -19,6 +19,10 @@ fi
 HF_HOME="$(cd ../../.. && pwd)/models/huggingface"
 export HF_HOME
 
+# The downloads themselves are all that goes to huggingface.co: no daily check
+# on pypi.org for a newer hf, and fewer details about this PC in each request.
+export HF_HUB_DISABLE_UPDATE_CHECK=1 HF_HUB_DISABLE_TELEMETRY=1
+
 # Whitelist of the file types to download for vLLM and SGLang: the weights in
 # .safetensors format, plus the model's small files (settings, tokenizer, chat
 # template). Everything else is skipped, such as older weight formats that can

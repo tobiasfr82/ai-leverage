@@ -35,8 +35,11 @@ start_downloader() {
     # OLLAMA_NOPRUNE: on start, Ollama deletes unfinished downloads in its
     # folder. This one starts on every sync, so without it an interrupted
     # download would start over instead of carrying on where it stopped.
+    # OLLAMA_NO_CLOUD: like the engine, no contact with ollama.com beyond the
+    # downloads themselves.
     sudo docker run --detach --rm --name "$DOWNLOADER" \
         --env OLLAMA_NOPRUNE=1 \
+        --env OLLAMA_NO_CLOUD=1 \
         --volume "$repo_dir/models/ollama:/root/.ollama/models" \
         --volume "$specs_dir:/specs:ro" \
         "$DOWNLOADER_IMAGE" > /dev/null || return 1

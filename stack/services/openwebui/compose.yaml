@@ -29,6 +29,10 @@ services:
       - 'RAG_EMBEDDING_ENGINE=ollama'
       - 'RAG_EMBEDDING_MODEL=rag/qwen3-embedding:8b'
       - 'RAG_OLLAMA_BASE_URL=http://ollama:11434'
+      # --- Privacy ---
+      # Counts on every start. No asking GitHub for the newest version each
+      # time someone opens Open WebUI: manage.sh -> Update gets it anyway.
+      - 'ENABLE_VERSION_UPDATE_CHECK=${ENABLE_VERSION_UPDATE_CHECK:-false}'
     # Optional settings for this machine. See .env.template.
     env_file:
       - path: .env

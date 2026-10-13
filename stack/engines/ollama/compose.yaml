@@ -15,6 +15,13 @@ services:
       # the shared models/ folder at the top of the repo.
       - ./data:/root/.ollama
       - ../../../models/ollama:/root/.ollama/models
+    environment:
+      # Ollama's cloud features off: models that run on ollama.com and its web
+      # search. Without this, Ollama also contacts ollama.com at every start and
+      # every 4 hours after, signed with this install's key, for its cloud model
+      # list and model tips. Downloading models still works.
+      # OLLAMA_NO_CLOUD=0 in .env turns the cloud back on.
+      - OLLAMA_NO_CLOUD=${OLLAMA_NO_CLOUD:-1}
     # Optional settings for this machine, such as context size. Without them
     # Ollama picks values that suit your GPU. See .env.template.
     env_file:

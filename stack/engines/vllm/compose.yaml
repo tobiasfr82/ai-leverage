@@ -24,6 +24,11 @@ services:
       # Never go online for a model: run only what the downloader fetched.
       # set_model.sh shows what a download is missing.
       - HF_HUB_OFFLINE=1
+      # vLLM reports your hardware, the model type and its settings to
+      # stats.vllm.ai at every start and every 10 minutes after, unless told
+      # not to. Either name turns that off; vLLM reads both.
+      - VLLM_NO_USAGE_STATS=1
+      - DO_NOT_TRACK=1
     # vLLM's worker processes pass data through shared memory, and Docker's
     # default allowance for that (64 MB) is too small.
     ipc: host

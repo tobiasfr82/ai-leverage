@@ -10,10 +10,15 @@ services:
     labels:
       # What manage.sh shows while it runs: the address apps use, not a web page
       ai-leverage.url: "http://localhost:${OLLAMA_PORT:-11434} (API)"
+      # ...and the address other containers use, such as Open WebUI: the
+      # container's name and its own port, the same whatever .env says
+      ai-leverage.connect: "http://ollama:11434 (in Open WebUI: Connections → Ollama API)"
       # Where the update check finds the version: the image's own label names
       # the Ubuntu it's built on, so ask Ollama, and its GitHub releases
       ai-leverage.version-command: "ollama --version"
       ai-leverage.releases: "ollama/ollama"
+      # Its data/ holds only its key: nothing for Update to back up first
+      ai-leverage.data: "none"
     volumes:
       # Keys and settings stay with the service; the models themselves go to
       # the shared models/ folder at the top of the repo.

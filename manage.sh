@@ -19,6 +19,9 @@ APPS_DIR="$BASE_DIR/apps"
 # Unified script directory (all helpers moved here)
 SCRIPT_DIR="$BASE_DIR/src/bash"
 
+# Where the update check keeps what it found (see src/bash/update-common.sh)
+UPDATE_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ai-leverage/updates"
+
 # The groups in stack/, in menu order, each with the line shown next to its
 # heading. A folder in stack/ that isn't listed here still shows up, after these.
 STACK_GROUPS=(
@@ -39,6 +42,22 @@ NC='\033[0m'
 BOLD='\033[1m'
 
 # --- Functions ---
+
+# A version as the menus show it: a number gets a v (v2.1.287), anything else
+# stays as it is (b11580, "new build", where another install came from)
+show_version() {
+  if [[ "$1" =~ ^[0-9] ]]; then echo "v$1"; else echo "$1"; fi
+}
+
+# Which ai-leverage this is: its release tag, or else its commit, and the
+# branch when it isn't main. Nothing when it isn't a git checkout.
+stack_version() {
+  local version branch
+  version=$(git -C "$BASE_DIR" describe --tags --always 2> /dev/null) || return
+  branch=$(git -C "$BASE_DIR" branch --show-current 2> /dev/null)
+  [ -n "$branch" ] && [ "$branch" != main ] && version+=" on $branch"
+  echo "version $version"
+}
 
 pause() {
   read -n 1 -s -r -p "Press any key to return..."
@@ -186,6 +205,16 @@ get_url() {
   echo "${URLS[${project:-_}]}"
 }
 
+# The address other containers, such as Open WebUI, reach a folder's service
+# at: its ai-leverage.connect label, read from the compose file so it shows
+# whether it runs or not. It's what goes in Open WebUI's connection settings.
+get_connect() {
+  local file
+  file=$(compose_file "$1")
+  [ -n "$file" ] || return
+  sed -n 's/^ *ai-leverage\.connect: *"\(.*\)" *$/\1/p' "$file" | head -n 1
+}
+
 # The line about what a folder's service runs, while it runs (see load_states)
 get_info() {
   [ -n "$(compose_file "$1")" ] || return
@@ -252,6 +281,8 @@ ensure_network() {
 # SVC_PREVIOUS is the version Revert goes back to
 load_service() {
   IFS='|' read -r SVC_STATE SVC_VERSION SVC_HELD SVC_PREVIOUS < <("$SCRIPT_DIR/service.sh" "$1" status)
+  SVC_VERSION=$(show_version "$SVC_VERSION")
+  SVC_PREVIOUS=$(show_version "$SVC_PREVIOUS")
 }
 
 service_menu() {
@@ -269,7 +300,7 @@ service_menu() {
   while true; do
     # Before clearing the screen, in case sudo asks for your password
     load_states
-    local status_indicator info
+    local status_indicator info connect
     status_indicator="$(get_status "$path")"
     if $has_compose; then
       load_service "$path"
@@ -278,11 +309,14 @@ service_menu() {
     fi
     status_indicator+=" $(get_url "$path")"
     info=$(get_info "$path")
+    connect=$(get_connect "$path")
     local scripts
     mapfile -t scripts < <(list_scripts "$path")
     clear
     echo -e "${BOLD}AI LEVERAGE${NC} > ${YELLOW}${name/\// > }${NC} $status_indicator"
     [ -n "$info" ] && echo "  └ $info"
+    # The address in bold, the note on where it goes after it
+    [ -n "$connect" ] && echo -e "  Other services reach it at ${BOLD}${connect%% (*}${NC}${connect#"${connect%% (*}"}"
     echo -e "--------------------------------------------"
     if $has_compose; then
       echo -e "1) ${GREEN}Start${NC} (up, also applies .env changes)"
@@ -367,6 +401,8 @@ list_apps() {
 load_app() {
   IFS='|' read -r APP_STATE APP_VERSION APP_HELD APP_PREVIOUS APP_NAME APP_SOURCE APP_ABOUT \
     < <("$SCRIPT_DIR/app.sh" "$1" status)
+  APP_VERSION=$(show_version "$APP_VERSION")
+  APP_PREVIOUS=$(show_version "$APP_PREVIOUS")
 }
 
 # The loaded app's status: [INSTALLED], [HELD] (installed, and Update skips it),
@@ -447,7 +483,7 @@ app_menu() {
 # What the last update check found, without going online: when it ran, and
 # how many updates it found that haven't been installed since
 update_summary() {
-  local dir="${XDG_CACHE_HOME:-$HOME/.cache}/ai-leverage/updates" minutes age count
+  local dir=$UPDATE_CACHE_DIR minutes age count
   if [ ! -f "$dir/.checked" ]; then
     echo "(looks online)"
     return
@@ -465,6 +501,19 @@ update_summary() {
   esac
 }
 
+# The newer version the last update check found for a folder, e.g. "↑ 0.40.4",
+# without going online. Nothing when there's none, and none once it's updated.
+update_hint() {
+  # The same name the check gives it: stack/engines/ollama is stack-engines-ollama
+  local key=${1#"$BASE_DIR"/} file result installed newest
+  file="$UPDATE_CACHE_DIR/${key//\//-}"
+  [ -f "$file" ] || return
+  IFS='|' read -r result installed newest _ < "$file"
+  [ "$result" == newer ] || return
+  [ "$newest" == "$installed" ] && newest="new build"
+  echo -e "${YELLOW}↑ $(show_version "$newest")${NC}"
+}
+
 main_menu() {
   while true; do
     # Before clearing the screen, in case sudo asks for your password
@@ -474,40 +523,40 @@ main_menu() {
     local system
     system=$("$SCRIPT_DIR/monitor-system.sh" --summary)
     clear
-    echo -e "${BOLD}AI LEVERAGE STACK MANAGER${NC}   updated $(date +%H:%M:%S)"
+    echo -e "${BOLD}AI LEVERAGE STACK MANAGER${NC}   $(stack_version)"
     echo -e "--------------------------------------------"
     echo -e "$system"
     echo -e "--------------------------------------------"
-    # A heading per group, and its folders under it, with where to open the
-    # ones that run. The numbers run on from one group to the next.
-    local groups entry group members dir info
+    # A heading per group, and its folders right under it, with where to open
+    # the ones that run. The numbers run on from one group to the next. A blank
+    # line between groups and none elsewhere, so the menu fits one screen.
+    local groups entry group members dir info gap=""
     local items=()
     mapfile -t groups < <(list_groups)
     for entry in "${groups[@]}"; do
       group=${entry%%|*}
       mapfile -t members < <(group_items "$STACK_DIR/$group")
       [ ${#members[@]} -eq 0 ] && continue
-      printf "${BOLD}%-13s${NC} %s\n\n" "${group^^}" "${entry#*|}"
+      printf "$gap${BOLD}%-13s${NC} %s\n" "${group^^}" "${entry#*|}"
+      gap="\n"
       for dir in "${members[@]}"; do
         items+=("$dir")
-        printf "%2d) ${BOLD}%-14s${NC} %s %s\n" "${#items[@]}" "$(basename "$dir")" "$(get_status "$dir" $STATUS_WIDTH)" "$(get_url "$dir")"
+        printf "%2d) ${BOLD}%-14s${NC} %s %s %s\n" "${#items[@]}" "$(basename "$dir")" "$(get_status "$dir" $STATUS_WIDTH)" "$(get_url "$dir")" "$(update_hint "$dir")"
         info=$(get_info "$dir")
         [ -n "$info" ] && echo "    └ $info"
       done
-      echo
     done
 
     # The desktop apps, numbered on from the stack
     local apps
     mapfile -t apps < <(list_apps)
     if [ ${#apps[@]} -gt 0 ]; then
-      printf "${BOLD}%-13s${NC} %s\n\n" "APPS" "programs on this PC, outside Docker"
+      printf "$gap${BOLD}%-13s${NC} %s\n" "APPS" "programs on this PC, outside Docker"
       for dir in "${apps[@]}"; do
         items+=("$dir")
         load_app "$dir"
-        printf "%2d) ${BOLD}%-14s${NC} %s %s\n" "${#items[@]}" "$(basename "$dir")" "$(app_status $STATUS_WIDTH)" "$APP_VERSION"
+        printf "%2d) ${BOLD}%-14s${NC} %s %s %s\n" "${#items[@]}" "$(basename "$dir")" "$(app_status $STATUS_WIDTH)" "$APP_VERSION" "$(update_hint "$dir")"
       done
-      echo
     fi
 
     if [ ${#items[@]} -eq 0 ]; then
@@ -519,10 +568,9 @@ main_menu() {
     echo -e "--------------------------------------------"
     echo -e "r) ${CYAN}Refresh${NC} disk, RAM, GPU, service and app status"
     echo -e "u) ${YELLOW}Check for updates${NC} of the engines, services and apps $(update_summary)"
-    echo -e "m) ${CYAN}Monitor system${NC} (live)"
-    echo -e "p) ${CYAN}View Docker Ports${NC}"
-    echo -e "s) ${RED}Stop all${NC} engines and services"
-    echo -e "q) Quit"
+    # The short ones in pairs, the second of each lined up
+    echo -e "m) ${CYAN}Monitor system${NC} (live)          p) ${CYAN}View Docker Ports${NC}"
+    echo -e "s) ${RED}Stop all${NC} engines and services  q) Quit"
     echo -e "--------------------------------------------"
     read -p "Selection: " choice
 

@@ -244,7 +244,25 @@ versions() {
     local installed=$1 newest=$2 arrow="  "
     [ -n "$newest" ] && [ "$newest" != "$installed" ] && arrow="→ "
     [ "$newest" == "$installed" ] && newest=""
-    printf "%-12s %s%-12s" "$installed" "$arrow" "$newest"
+    printf "%-${VERSION_WIDTH}s %s%-${VERSION_WIDTH}s" "$installed" "$arrow" "$newest"
+}
+
+# Room for the longest version on the screen, at least 12 characters, so the
+# columns line up even with a long one such as "build 2026-10-14"
+set_version_width() {
+    local i name version newest
+    VERSION_WIDTH=12
+    for i in "${!ROW_PATH[@]}"; do
+        for version in "${ROW_INSTALLED[$i]}" "${ROW_NEWEST[$i]}"; do
+            [ ${#version} -gt $VERSION_WIDTH ] && VERSION_WIDTH=${#version}
+        done
+    done
+    for i in "${TOOL_LINES[@]}"; do
+        IFS='|' read -r name version newest _ <<< "$i"
+        for version in "$version" "$newest"; do
+            [ ${#version} -gt $VERSION_WIDTH ] && VERSION_WIDTH=${#version}
+        done
+    done
 }
 
 count_updates() {
@@ -257,6 +275,7 @@ count_updates() {
 
 draw() {
     local i group="" installed name version newest note
+    set_version_width
     clear
     echo -e "${BOLD}AI LEVERAGE${NC} > ${YELLOW}Updates${NC}   checked $CHECKED_AT"
     echo "Each one's version on this PC and its newest stable release."
@@ -346,7 +365,7 @@ row_menu() {
 }
 
 update_all() {
-    local todo=() i n=0 running=false ok=() failed=()
+    local todo=() i n=0 running=false backups=false ok=() failed=()
     load_states
     for i in "${!ROW_RESULT[@]}"; do
         [ "${ROW_RESULT[$i]}" == newer ] && todo+=("$i")
@@ -359,15 +378,26 @@ update_all() {
     echo
     echo "Update all updates these, one after another:"
     for i in "${todo[@]}"; do
-        local restart=""
-        if [ "${ROW_KIND[$i]}" == service ] && is_running "${ROW_PATH[$i]}"; then
-            restart="  (running: restarts it)"
-            running=true
+        local note="" data=""
+        if [ "${ROW_KIND[$i]}" == service ]; then
+            if is_running "${ROW_PATH[$i]}"; then
+                note="running: restarts it"
+                running=true
+            fi
+            data=$("$(tool_of "$i")" "${ROW_PATH[$i]}" data 2> /dev/null)
+            if [ -n "$data" ]; then
+                note="${note:+$note; }backs up its data first, ${data##*|}"
+                backups=true
+            fi
         fi
-        printf "   %-14s %s → %s%s\n" "$(basename "${ROW_PATH[$i]}")" "${ROW_INSTALLED[$i]}" "${ROW_NEWEST[$i]}" "$restart"
+        printf "   %-14s %s → %s%s\n" "$(basename "${ROW_PATH[$i]}")" "${ROW_INSTALLED[$i]}" "${ROW_NEWEST[$i]}" "${note:+  ($note)}"
     done
     if $running; then
         echo -e "${YELLOW}The running ones restart: open chats are cut off, and an engine loads its model again.${NC}"
+    fi
+    if $backups; then
+        echo -e "${YELLOW}A new version may convert the data it finds, so the old version can't read it
+after a Revert. The backups (in backups/) let Revert put it back.${NC}"
     fi
     ask "Update these ${#todo[@]}?" || { echo -e "${CYAN}Cancelled.${NC}"; sleep 1; return; }
 

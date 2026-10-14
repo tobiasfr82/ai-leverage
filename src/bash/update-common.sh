@@ -40,6 +40,17 @@ ask() {
     [[ "$reply" =~ ^[Yy]$ ]]
 }
 
+# The same, where yes is the safe answer: Enter says yes, only n says no
+ask_yes() {
+    local reply
+    if $ASSUME_YES; then
+        echo "$1 (Y/n): y"
+        return 0
+    fi
+    read -r -p "$1 (Y/n): " reply
+    [[ ! "$reply" =~ ^[Nn]$ ]]
+}
+
 # The host part of a URL, to say where something comes from
 host_of() {
     local host=${1#*://}

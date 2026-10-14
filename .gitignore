@@ -24,6 +24,9 @@ __pycache__/
 # Ignore AI Models
 models/
 
+# Ignore the copies Update makes of the services' own data
+backups/
+
 # Ignore each service's own data (settings, chats, uploads, keys)
 stack/**/data/
 stack/**/output/

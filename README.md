@@ -100,6 +100,7 @@ of your files Hermes can change.
 | `src/bash/`                 | Helpers that `manage.sh` and `bootstrap.sh` use                 |
 | `src/python/`               | The update check's registry lookup (`registry.py`)              |
 | `models/`                   | Downloaded models (git-ignored)                                 |
+| `backups/`                  | Copies of the services' data that Update makes (git-ignored)    |
 
 ## ⚙️ Your own settings
 Every service works without any configuration. To change something for your machine only,
@@ -149,7 +150,8 @@ TOOLS updated another way
 
 - **Nothing updates on its own, and the check downloads nothing.** It asks each source
   which version is newest when you open the overview, and the main menu shows what it found
-  last: `u) Check for updates of the engines, services and apps (last check 2 h ago: 3 updates)`.
+  last: `u) Check for updates of the engines, services and apps (last check 2 h ago: 3 updates)`,
+  and next to each engine, service or app with an update, the newest version, as `↑ v0.40.4`.
 - **An engine or service that runs is restarted by its update,** after a warning, because
   that cuts off open chats and makes an engine load its model again. One that's stopped
   stays stopped and uses the new version at its next Start.
@@ -157,9 +159,13 @@ TOOLS updated another way
   replaced under the name `ai-leverage-revert/<name>`, and removes the one before. Notes on
   it, and the hold, are in the service's `update/` folder (git-ignored). For the apps, see
   [apps/README.md](apps/README.md).
-- **Revert brings back the program, not its data.** A new version of Open WebUI or Hermes
-  can convert its saved data on its first start, and an older version may not read it
-  anymore. For Open WebUI, [back up first](stack/services/openwebui/README.md#back-up-before-updates-or-big-changes).
+- **Update offers to back up a service's own data first.** A new version of Open WebUI or
+  Hermes can convert its saved data (chats, memory) on its first start, and an older version
+  may not read it anymore. So Update says so and asks to back it up, while the service is
+  stopped, to `backups/services/<name>/` (git-ignored, readable only by you, since it can
+  hold keys; the newest 3 stay). Update all backs up without asking. Revert then offers to
+  put that backup back as well, after backing up the data as it is, so nothing is lost.
+  Your notes, which Hermes works in, are never copied.
 - **The tools are listed, not updated:** ai-leverage itself (`git pull`), uv
   (`uv self update`), and Docker and the NVIDIA driver, which come with your system's
   updates.
@@ -290,6 +296,10 @@ Put a new folder in the group that fits, and `manage.sh` finds it on its own:
   menu should show in an `ai-leverage.url` label in `compose.yaml`: Docling's points at its
   web UI at `/ui`, and most engines' and Hermes's say `(API)`, because those are
   addresses for apps, not web pages.
+- **An `ai-leverage.connect` label tells other services where to find it:** the address
+  containers such as Open WebUI use (its container name and its own port, e.g.
+  `http://vllm:8000/v1`, not `localhost`), and where that goes in Open WebUI. Its own menu
+  shows it as "Other services reach it at ...".
 - **An `ai-leverage.info` label adds a line under it while it runs,** about what it runs.
   vLLM and SGLang use it to show their model, as `model: ${HUGGINGFACE_MODEL}`.
 - **Its version comes from its image,** for Update and the update overview. Use a tag that
@@ -298,6 +308,16 @@ Put a new folder in the group that fits, and `manage.sh` finds it on its own:
   `ai-leverage.version-command` is a command that prints it, run in the downloaded image
   without network (Ollama's is `ollama --version`), and `ai-leverage.releases` names the
   GitHub project whose newest release is the newest version (`ollama/ollama`).
+- **When an image's moving tag also carries development builds,** as Docling's `latest`
+  does, Update follows the project's GitHub releases instead: the compose file names a
+  release through a variable (`docling-serve:${DOCLING_IMAGE_TAG:-v1.37.0}`), the label
+  `ai-leverage.follow: "releases"` turns it on, and Update writes the newest release's tag to
+  that variable in the service's `.env`. Revert puts the one before back.
+- **Folders in it that its containers write to, such as `data/`, are its own data,** which
+  Update offers to back up first. An `ai-leverage.data` label says what they hold, for the
+  warning (Open WebUI's: `your chats, users and uploads`), or `none` when nothing in them is
+  worth a copy (Ollama's holds only its key). `ai-leverage.data-skip` names folders in them
+  that backups leave out, such as a cache it fills again by itself (`data/cache`).
 - **A desktop app** goes in `apps/<name>/` with an `app.conf` instead; see
   [apps/README.md](apps/README.md#adding-an-app).
 - **Folder names are unique across the groups,** except where a downloader and an engine

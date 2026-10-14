@@ -13,6 +13,9 @@ services:
     labels:
       # What manage.sh shows while it runs: the address apps use, not a web page
       ai-leverage.url: "http://localhost:${SGLANG_PORT:-30000}/v1 (API)"
+      # ...and the address other containers use, such as Open WebUI: the
+      # container's name and its own port, the same whatever .env says
+      ai-leverage.connect: "http://sglang:30000/v1 (in Open WebUI: Connections → OpenAI API, no key)"
       # ...and under it, the model this container was started with
       ai-leverage.info: "model: ${HUGGINGFACE_MODEL}"
     volumes:
@@ -28,9 +31,9 @@ services:
       - HF_HUB_OFFLINE=1
     # SGLang's processes pass data through shared memory, and Docker's default
     # allowance for that (64 MB) is too small. An allowance of its own keeps it
-    # apart from the rest of the PC (vLLM shares the PC's instead, with
-    # "ipc: host"). It only takes RAM as it fills.
-    shm_size: 16gb
+    # apart from the rest of the PC. It's a ceiling: it only takes RAM as it
+    # fills, and one GPU fills little of it. SHM_SIZE in .env changes it.
+    shm_size: ${SHM_SIZE:-16gb}
     # Pick the model with ./set_model.sh, which also creates the admin key that
     # locks SGLang's management functions. SGLang listens on all of the
     # container's addresses; the ports line above decides who can reach it.

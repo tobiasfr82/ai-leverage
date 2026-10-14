@@ -14,6 +14,11 @@ services:
       # Where the update check finds the version: the image's own label only
       # says "main", so read it from Open WebUI's package file
       ai-leverage.version-command: "grep -m1 '\"version\"' /app/package.json"
+      # What Update offers to back up first (to backups/), since a new version
+      # may convert it. Its cache holds models it downloads again by itself
+      # (about 1 GB), so backups leave it out.
+      ai-leverage.data: "your chats, users and uploads"
+      ai-leverage.data-skip: "data/cache"
     volumes:
       - ./data:/app/backend/data
     environment:

@@ -17,6 +17,9 @@ services:
       # What manage.sh shows while it runs: llama.cpp's own chat page, which
       # apps reach at /v1
       ai-leverage.url: "http://localhost:${LLAMACPP_PORT:-8080} (chat page; apps use /v1)"
+      # ...and the address other containers use, such as Open WebUI: the
+      # container's name and its own port, the same whatever .env says
+      ai-leverage.connect: "http://llamacpp:8080/v1 (in Open WebUI: Connections → OpenAI API, no key)"
       # ...and under it, where its models are picked
       ai-leverage.info: "models: picked in Open WebUI; list_models shows them"
     volumes:

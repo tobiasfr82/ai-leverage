@@ -15,10 +15,16 @@ services:
       # What manage.sh shows while it runs: the address apps such as Open WebUI
       # use, not a web page. You chat with Hermes through hermes -> chat.
       ai-leverage.url: "http://localhost:${HERMES_PORT:-8642}/v1 (API)"
+      # ...and the address other containers use, such as Open WebUI: the
+      # container's name and its own port, the same whatever .env says
+      ai-leverage.connect: "http://hermes:8642/v1 (in Open WebUI: Connections → OpenAI API, key from connect_openwebui)"
       # Where the update check finds the version: the image has no label for
       # it, so ask Hermes, and its GitHub releases
       ai-leverage.version-command: "hermes --version"
       ai-leverage.releases: "NousResearch/hermes-agent"
+      # What Update offers to back up first (to backups/), since a new version
+      # may convert it. Your notes (HERMES_WORKSPACE) are never copied.
+      ai-leverage.data: "its memory, skills and chat history"
     volumes:
       # Hermes's own settings, memory, skills and chat history
       - ./data:/opt/data

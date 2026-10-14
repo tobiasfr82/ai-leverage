@@ -161,6 +161,11 @@ fi
 # --- 4. TERMINATION ---
 echo "------------------------------------------"
 echo -e "Configuration saved: \033[1;34m$SELECTED_MODEL\033[0m"
+# An engine that reads the model's chat format when it starts (vLLM) says
+# here what it will find
+if [ -f chat_format.py ]; then
+    python3 -I chat_format.py "$SELECTED_MODEL" "$MODELS_DIR"
+fi
 echo "------------------------------------------"
 
 # --- 5. APPLY ---

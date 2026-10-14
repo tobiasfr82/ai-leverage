@@ -22,6 +22,8 @@ services:
       # load them, but never change, delete or add anything there. So the files
       # stay yours, not root's, and cleaning up never needs sudo.
       - ../../../models/huggingface/hub:/models/huggingface/hub:ro
+      # Reads the model's chat template when vLLM starts (see entrypoint below)
+      - ./chat_format.py:/ai-leverage/chat_format.py:ro
     environment:
       - HF_HUB_CACHE=/models/huggingface/hub
       # Never go online for a model: run only what the downloader fetched.
@@ -37,11 +39,18 @@ services:
     # keeps it apart from the rest of the PC. It's a ceiling: it only takes RAM
     # as it fills, and one GPU fills little of it. SHM_SIZE in .env changes it.
     shm_size: ${SHM_SIZE:-16gb}
+    # vLLM only takes chats that offer tools, as Open WebUI's do, once it knows
+    # how the model writes tool calls, and it shows thinking apart from the
+    # answer once it knows how the model marks it. chat_format.py reads both
+    # from the model's chat template, says in the log what it found, and
+    # starts "vllm serve" with the settings for them.
+    entrypoint: ["python3", "-I", "/ai-leverage/chat_format.py", "--serve"]
     # Pick the model with ./set_model.sh. The rest is optional; by default vLLM
     # takes 85% of the GPU's memory and fits the longest context it can.
-    # VLLM_EXTRA_ARGS in .env adds any other vLLM option, e.g. ones a model needs.
+    # VLLM_EXTRA_ARGS in .env adds any other vLLM option, e.g. ones a model
+    # needs, or its own --tool-call-parser or --reasoning-parser, which win.
     command: >
-      --model ${HUGGINGFACE_MODEL:?no model chosen yet - run set_model.sh in stack/engines/vllm}
+      ${HUGGINGFACE_MODEL:?no model chosen yet - run set_model.sh in stack/engines/vllm}
       --max-model-len ${CONTEXT_SIZE:-auto}
       --gpu-memory-utilization ${VRAM_LIMIT:-0.85}
       ${VLLM_EXTRA_ARGS:-}

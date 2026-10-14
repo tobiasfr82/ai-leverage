@@ -35,3 +35,24 @@ kind of model it can run, so they share the folder without seeing each other's m
   `(missing: chat template)`. Run sync_models to fetch it.
 - llama.cpp's **list_models** does the same for GGUF models. Restart llama.cpp after a
   download, because it reads its list of models when it starts.
+
+## Tool calls and thinking
+
+Open WebUI offers every model tools, so an engine has to know how the model writes a tool
+call, and how it marks its thinking to show it apart from the answer. Ollama, SGLang and
+llama.cpp work this out themselves. vLLM can't, so its container starts through
+`vllm/chat_format.py`, which reads the model's chat template and starts vLLM with the
+matching settings. Its log says what it found, and **set_model** says it when you pick a
+model:
+
+```text
+ai-leverage: Tool calls: Qwen 3.5 / Qwen3-Coder style (qwen3_coder)
+ai-leverage: Thinking: in <think> tags (qwen3), shown apart from the answer
+```
+
+It knows the Qwen 3.5 family (Qwen3.6, Qwen3.8, Ornith), Qwen3 and Qwen2.5, Hermes,
+Gemma 4, gpt-oss and DeepSeek R1. These are families, not single models, so their
+fine-tunes and quantized versions come along. For a model it doesn't know, it says so, and
+`VLLM_EXTRA_ARGS` in `vllm/.env` can name the format the model's page gives, for example
+`--enable-auto-tool-choice --tool-call-parser mistral`. Settings named there always win.
+A new family is one line in `chat_format.py`.

@@ -6,6 +6,9 @@
 # (git-ignored), and the engine can be restarted with it right away.
 # The engines never go online, so the list also shows what a download is
 # missing, and which models in the downloader's models.txt aren't here yet.
+# Next to each model: how much context it gets on this PC with the engine's
+# settings, estimated by src/python/model_fit.py (f in manage.sh's main menu
+# compares all engines).
 # Usage: pick-huggingface-model.sh <engine name to show, e.g. vLLM>
 
 ENGINE_NAME="${1:?usage: pick-huggingface-model.sh <engine name>}"
@@ -63,6 +66,15 @@ missing_parts() {
     echo "${missing#, }"
 }
 
+# How much context each model gets on this PC with this engine's settings,
+# e.g. "~194k · 8-bit 256k (its max)", or why it doesn't fit. Lines starting
+# with # are notes for under the list.
+declare -A fit_of
+fit_notes=()
+while IFS=$'\t' read -r name fit; do
+    if [ "$name" == "#" ]; then fit_notes+=("$fit"); elif [ -n "$name" ]; then fit_of[$name]=$fit; fi
+done < <(python3 -I "$SCRIPT_DIR/../python/model_fit.py" --engine "$ENGINE_FOLDER" 2>/dev/null)
+
 # Downloads with .safetensors weights: GGUF-only downloads are for llama.cpp.
 # The engines load the version refs/main points at.
 models=()
@@ -77,12 +89,21 @@ if [ -d "$MODELS_DIR" ]; then
         missing=$(missing_parts "$snap")
         models+=("$clean_name")
         missing_of+=("$missing")
-        label=$clean_name
-        [ "$clean_name" == "$CURRENT_MODEL" ] && label+="  (current)"
-        [ -n "$missing" ] && label+="  (missing: $missing)"
-        labels+=("$label")
     done < <(find "$MODELS_DIR" -maxdepth 1 -mindepth 1 -type d -name "models--*" -print0 | sort -z)
 fi
+
+# One line per model: its name, what fits, and whether it's the current one
+width=0
+for model in "${models[@]}"; do
+    [ ${#model} -gt $width ] && width=${#model}
+done
+for i in "${!models[@]}"; do
+    model=${models[$i]}
+    label=$(printf '%-*s  %s' "$width" "$model" "${fit_of[$model]}")
+    [ "$model" == "$CURRENT_MODEL" ] && label+="  (current)"
+    [ -n "${missing_of[$i]}" ] && label+="  (missing: ${missing_of[$i]})"
+    labels+=("$label")
+done
 
 # Models the downloader's list asks for that aren't here yet. Lines with a
 # size ("org/model:Q4_K_M") are GGUF models for llama.cpp, not for this engine.
@@ -116,10 +137,14 @@ fi
 
 # --- 3. SELECTION MENU ---
 # One model per line, like the menus in manage.sh
-echo "Please select a model to deploy to $ENGINE_NAME:"
+echo "Please select a model to deploy to $ENGINE_NAME. Next to each: the context"
+echo "it gets on this PC, an estimate (f in the main menu compares engines)."
 echo
 for i in "${!labels[@]}"; do
     printf '%2d) %s\n' $((i + 1)) "${labels[$i]}"
+done
+for note in "${fit_notes[@]}"; do
+    echo "$note" | fold -s -w 78
 done
 echo "------------------------------------------"
 echo " b) Go back"
@@ -137,6 +162,12 @@ while [ -z "$SELECTED_MODEL" ]; do
     missing=${missing_of[$((choice - 1))]}
     if [ -n "$missing" ]; then
         echo "This download is missing: $missing. $ENGINE_NAME can't run it properly."
+        read -p "Choose it anyway? (y/N): " -r confirm
+        [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Pick another model, or b to go back."; continue; }
+    fi
+    fit=${fit_of[${models[$((choice - 1))]}]}
+    if [[ "$fit" == "too big"* || "$fit" == "won't start"* || "$fit" == "needs "* || "$fit" == "no NVIDIA"* ]]; then
+        echo "By the estimate it won't run here: $fit."
         read -p "Choose it anyway? (y/N): " -r confirm
         [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Pick another model, or b to go back."; continue; }
     fi

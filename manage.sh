@@ -10,6 +10,8 @@
 # Update, Revert, Hold and Uninstall, all done by src/bash/app.sh.
 # Engines and services get the same Update, Revert and Hold (src/bash/service.sh),
 # and u opens the update overview of all of them (src/bash/check-updates.sh).
+# f shows which downloaded models fit on this PC for what you need, biggest
+# first, and how to run each one (src/python/fit_screen.py).
 
 # --- Configuration ---
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,7 +22,7 @@ APPS_DIR="$BASE_DIR/apps"
 SCRIPT_DIR="$BASE_DIR/src/bash"
 
 # Where the update check keeps what it found (see src/bash/update-common.sh)
-UPDATE_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ai-leverage/updates"
+UPDATE_CACHE_DIR="$BASE_DIR/cache/updates"
 
 # The groups in stack/, in menu order, each with the line shown next to its
 # heading. A folder in stack/ that isn't listed here still shows up, after these.
@@ -568,6 +570,7 @@ main_menu() {
     echo -e "--------------------------------------------"
     echo -e "r) ${CYAN}Refresh${NC} disk, RAM, GPU, service and app status"
     echo -e "u) ${YELLOW}Check for updates${NC} of the engines, services and apps $(update_summary)"
+    echo -e "f) ${CYAN}Model fit${NC}: the best models for what you need, and how to run them on this PC"
     # The short ones in pairs, the second of each lined up
     echo -e "m) ${CYAN}Monitor system${NC} (live)          p) ${CYAN}View Docker Ports${NC}"
     echo -e "s) ${RED}Stop all${NC} engines and services  q) Quit"
@@ -582,6 +585,13 @@ main_menu() {
       # shows the new versions afterwards. Ctrl+C leaves it, not the menu.
       trap true INT
       "$SCRIPT_DIR/check-updates.sh" "${items[@]}"
+      trap - INT
+    fi
+    if [[ "$choice" == "f" ]]; then
+      # In this window, like u: a full screen of its own, which gives the
+      # menu back as it was. Ctrl+C leaves it, not the menu.
+      trap true INT
+      python3 -I "$BASE_DIR/src/python/fit_screen.py"
       trap - INT
     fi
     if [[ "$choice" == "m" ]]; then open_helper "monitor-system.sh"; fi

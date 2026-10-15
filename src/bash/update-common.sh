@@ -25,7 +25,7 @@ PREVIOUS_FILE="$REVERT_DIR/previous"
 
 # The update overview keeps what the last check found, one file per app or
 # service, so the main menu can count the updates without going online
-UPDATE_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ai-leverage/updates"
+UPDATE_CACHE_DIR="$BASE_DIR/cache/updates"
 
 # Set by --yes: Update all asked once for everything
 ASSUME_YES=${ASSUME_YES:-false}

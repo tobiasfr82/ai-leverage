@@ -67,7 +67,7 @@ CACHE_KEY=${REL//\//-}
 . "$SCRIPT_DIR/update-common.sh"
 
 # Versions read with a version command, by image: an image never changes
-VERSION_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ai-leverage/image-versions"
+VERSION_CACHE_DIR="$BASE_DIR/cache/image-versions"
 
 compose() { (cd "$SERVICE_DIR" && sudo docker compose "$@"); }
 

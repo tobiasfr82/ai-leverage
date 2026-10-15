@@ -1,0 +1,28 @@
+# ai-leverage/config/model-fit.conf.template
+# What the model fit (manage.sh -> f) plans for: how much context you need,
+# where a model may run, and how many conversations run at once.
+# Your own choices go in model-fit.conf next to this file, which git ignores.
+# f creates it from this file and changes it for you, or edit it by hand:
+#   cp model-fit.conf.template model-fit.conf
+# Each engine's own settings (context, GPU memory) are in its folder, e.g.
+# stack/engines/vllm/.env.
+
+# How much context you need, in tokens (default 65536 = 64k, enough for coding
+# agents). 0 lists the longest context each model gets.
+#FIT_CONTEXT=65536
+
+# Where a model may run: gpu (default: on the GPU alone, fast) or gpu+ram
+# (the PC's memory helps: bigger models and longer context, slower).
+#FIT_PLACE=gpu
+
+# How many chats or agents use one engine at the same time (default 1). Each
+# of them gets the whole context.
+#FIT_CONVERSATIONS=1
+
+# The order of the list: size (default, biggest first) or context (longest
+# first).
+#FIT_SORT=size
+
+# A context size of your own to choose from, besides 8k to 256k, in tokens,
+# e.g. 204800 for 200k (none by default).
+#FIT_EXTRA_CONTEXT=

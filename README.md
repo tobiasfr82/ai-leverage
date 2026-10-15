@@ -29,7 +29,8 @@ GPU    0% busy · VRAM 27.1 GB used / 31.8 GB · 14 W · 34°C
 full, RAM runs low, or the GPU gets hot. **r** refreshes these numbers and the services'
 and apps' status. **m** opens a live monitor that also shows which engine uses how much of the GPU's
 memory, the CPU, and how fast a download runs. **u** checks everything for updates; see
-[Updates](#-updates).
+[Updates](#-updates). **f** lists the best of your downloaded models for the context you
+need, and how to run each one on this PC; see [Hardware](#-hardware).
 
 1. Run **downloaders → ollama → sync_models** to download the models in
    `stack/downloaders/ollama/models.txt`. That list is large and made for a 32 GB GPU, so
@@ -98,9 +99,11 @@ of your files Hermes can change.
 | `stack/services/<name>/`    | What you use: the chat interface, the document reader, the agent |
 | `apps/<app>/`               | Desktop apps: where each comes from (`app.conf`), and its own scripts |
 | `src/bash/`                 | Helpers that `manage.sh` and `bootstrap.sh` use                 |
-| `src/python/`               | The update check's registry lookup (`registry.py`)              |
+| `src/python/`               | The update check's registry lookup (`registry.py`), the model fit (`hardware.py`, `model_facts.py`, `model_fit.py`, `fit_screen.py`), and how GGUF files are named (`gguf_names.py`) |
+| `config/`                   | Your settings for ai-leverage itself, such as what the model fit plans for (your copies are git-ignored) |
 | `models/`                   | Downloaded models (git-ignored)                                 |
 | `backups/`                  | Copies of the services' data that Update makes (git-ignored)    |
+| `cache/`                    | What ai-leverage looked up and can look up again: update checks, model facts (git-ignored) |
 
 ## ⚙️ Your own settings
 Every service works without any configuration. To change something for your machine only,
@@ -114,6 +117,11 @@ cp .env.template .env      # then uncomment and change what you need
 `.env` files are git-ignored, so your choices, IP addresses and tokens stay on your
 machine. Each `.env.template` lists the settings people usually change, with the default
 next to each one. Start the service again from the menu to apply a change.
+
+Settings for ai-leverage itself, which no container reads, go in `config/`. For now,
+that's `model-fit.conf`: what the model fit (**f**) plans for, the context you need, whether
+the PC's memory may help, and how many conversations run at once. **f** writes it for you,
+from `model-fit.conf.template` next to it, and you can edit it by hand just as well.
 
 **Updating from before the downloaders/engines/services folders?** Git moves the repo's
 files, but not your `.env` files or each service's `data/` folder (logins, chats, memory).
@@ -194,7 +202,34 @@ TOOLS updated another way
   context sizes in `stack/downloaders/ollama/specs/`. On a smaller card, trim
   `stack/downloaders/ollama/models.txt` and `stack/downloaders/huggingface/models.txt`
   before the first sync. As a rule of thumb, a model needs its download size in VRAM,
-  plus room for the conversation.
+  plus room for the conversation. **f** works that out for the models you have, below.
+- **f finds the best models for what you need.** At the top you choose how much context
+  you need, from 8k to the longest each model gets, and whether the PC's memory may help:
+  on the GPU alone is fast, and with the PC's memory, bigger models and longer context run,
+  slower. The list answers with the biggest models that manage it, each with the best way
+  to run it here. On a 32 GB RTX 5090, for 64k on the GPU alone:
+
+  ```text
+  34 models hold 64k on the GPU alone. Biggest first.
+
+        MODEL                         SIZE          8k   16k   32k   64k  128k  256k         HOW IT RUNS
+     1  Qwen3.6-35B-A3B               35B MoE   ████████████████████████████████████   256k  Ollama · Q4_K_M
+     4  Ornith-1.0-35B                35B MoE   ████████████████████████████████████   256k  vLLM · NVFP4
+    14  gemma-4-31B-turbo             31B       ██████████████████████████████······  ~131k  vLLM · NVFP4
+  ── 7 don't hold 64k ─────────────────────────────────────────────────────────────────────
+        Qwen3.8-Flash-Next            177B MoE  ··························│···········     –  only with PC memory: p
+  ```
+
+  The bars show how far each model gets: green as the engine is set, yellow with 8-bit
+  conversation memory (a setting that halves it, a little less precise), magenta with part
+  of the model in the PC's memory. One model in several files, such as the AWQ download and
+  Ollama's `qwen3.8:27b`, is one line. Enter opens a model: every way to run it, where the
+  GPU's and the PC's memory goes, and what to do to use it. There, a line marked *not
+  downloaded* is the same model in another size, worked out from its parameters; it only
+  exists if someone publishes it. Biggest first is a rough guide, not a benchmark, and the
+  numbers are estimates, checked against real starts; the engine's log says what it really
+  got. Your choices are kept in `config/model-fit.conf`, and vLLM's and SGLang's
+  **set_model** and llama.cpp's **list_models** use them for the estimate next to each model.
 - **vLLM and SGLang each claim most of the GPU's memory when they start** (vLLM 85%,
   SGLang what it works out for your card). Run only one of them, and stop it while you use
   Ollama's larger models or llama.cpp, or lower `VRAM_LIMIT` in its `.env`. llama.cpp takes
@@ -263,6 +298,8 @@ Some of the programs would also send things on their own. The stack turns that o
 - **Hermes's voice features run on this PC.** Its built-in default for reading replies
   aloud is Microsoft's Edge service, so the stack sets Piper and Whisper instead. See
   [its README](stack/services/hermes/README.md#good-to-know) for an existing install.
+- **The model fit (f) works offline.** It reads this PC's hardware and the headers of the
+  downloaded files, and keeps what it read in `cache/`.
 - **What you add can go online.** Examples: a key for a cloud model in Open WebUI or
   Hermes, or web search.
 - **The apps in `apps/` are ordinary desktop programs.** Install and Update go online to

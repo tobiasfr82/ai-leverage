@@ -18,6 +18,9 @@ Which one to use:
 - **llama.cpp** for models bigger than the GPU: what doesn't fit stays in the PC's memory.
   It switches models like Ollama, from Open WebUI's model list.
 
+**f** in the main menu shows, for the context you need, which of your models manage it and
+which engine runs each one best on this PC.
+
 The engines share the GPU. vLLM and SGLang each claim most of its memory when they start,
 so run only one of them at a time, and stop it while you use Ollama's larger models or
 llama.cpp. llama.cpp takes what is free when it loads a model and unloads it after 30
@@ -32,7 +35,8 @@ kind of model it can run, so they share the folder without seeing each other's m
 
 - vLLM's and SGLang's **set_model** shows what to do: it lists models from `models.txt` that
   aren't downloaded yet, and marks a download that lacks something, for example
-  `(missing: chat template)`. Run sync_models to fetch it.
+  `(missing: chat template)`. Run sync_models to fetch it. Next to each model it shows how
+  much context the model gets on this PC with the engine's settings, an estimate.
 - llama.cpp's **list_models** does the same for GGUF models. Restart llama.cpp after a
   download, because it reads its list of models when it starts.
 

@@ -27,6 +27,12 @@ models/
 # Ignore the copies Update makes of the services' own data
 backups/
 
+# Ignore your own settings for ai-leverage (the .template next to each stays)
+config/*.conf
+
+# Ignore what ai-leverage looked up and can look up again
+cache/
+
 # Ignore each service's own data (settings, chats, uploads, keys)
 stack/**/data/
 stack/**/output/

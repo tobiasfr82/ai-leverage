@@ -7,6 +7,8 @@
 #   --dry-run  show what would be built, change nothing
 #   --list     print the model names the specs produce and the base models they
 #              need, one per line (sync_models.sh uses this to keep them)
+#
+# menu: console   (manage.sh's menu shows what it prints without leaving the menu: it never asks anything)
 # ==============================================================================
 set -euo pipefail
 

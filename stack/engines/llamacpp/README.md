@@ -15,7 +15,7 @@ fetched, and loads the one you choose in Open WebUI. On this PC it answers at
 1. Add a GGUF model to `stack/downloaders/huggingface/models.txt`, as
    `organization/model:size`. The list has examples: remove the `#` in front of
    `unsloth/gemma-4-E4B-it-GGUF:Q4_K_M` (6 GB) for a first test. Then run
-   **downloaders → huggingface → sync_models**.
+   **Models › Downloaders › huggingface → sync_models**.
 2. Start **engines → llamacpp**. The very first start downloads llama.cpp itself (about
    2.6 GB) once.
 3. In Open WebUI, pick the model, e.g. `unsloth/gemma-4-E4B-it-GGUF:Q4_K_M`, and chat. The

@@ -1,0 +1,10 @@
+[project]
+name = "ai-leverage"
+version = "0.1.0"
+description = "The menus of ai-leverage (manage.sh), drawn with Textual"
+requires-python = ">=3.10"
+dependencies = [
+    # The menus are drawn with it. uv.lock pins the exact version; moving it
+    # is a change to the repo, tested before it's committed.
+    "textual>=8.2.8,<9",
+]

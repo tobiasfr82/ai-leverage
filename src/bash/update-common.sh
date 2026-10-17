@@ -98,15 +98,18 @@ read_previous() {
 # One line for the update overview, after looking online:
 #   result|installed|newest|note
 # result is current, newer, held (newer or not; Update skips it), missing,
-# or failed (note says why). Also kept for the main menu's count.
+# or failed (note says why). Also kept for the main menu's count; a check
+# that found nothing to keep drops what an earlier one kept.
 do_check() {
     local current result note=""
     if ! m installed; then
+        forget_check
         echo "missing|||"
         return 0
     fi
     current=$(m version)
     if ! m latest > /dev/null 2>&1; then
+        forget_check
         echo "failed|$current||"
         return 0
     fi

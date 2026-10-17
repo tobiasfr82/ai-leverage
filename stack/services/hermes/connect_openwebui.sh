@@ -3,6 +3,8 @@
 # Lets Open WebUI use Hermes as a model. Hermes creates a random API key on its
 # first start; this copies it into Open WebUI's .env (git-ignored), where
 # stack/services/openwebui/compose.yaml picks it up.
+#
+# menu: console   (manage.sh's menu shows what it prints without leaving the menu: it never asks anything)
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 HERMES_ENV="data/.env"

@@ -3,6 +3,8 @@
 # Downloads every model in models.txt into the shared models/huggingface folder,
 # where vLLM, SGLang and llama.cpp find them. Files already downloaded are
 # skipped, so re-runs are quick.
+#
+# menu: console   (manage.sh's menu shows what it prints without leaving the menu: it never asks anything)
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 MODELS_FILE="models.txt"

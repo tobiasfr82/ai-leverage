@@ -17,7 +17,7 @@ such as an Obsidian vault. You talk to it in the terminal or, as a model called
 
 ## First start
 
-1. **Get the model.** Run **downloaders → ollama → sync_models**. It builds
+1. **Get the model.** Run **Models › Downloaders › ollama → sync_models**. It builds
    `agent/qwen3.6:35b`, which Hermes uses by default (see `first-start-config.yaml`).
 2. **Give Hermes your notes.** Without this, it works in an empty `data/workspace` folder.
 

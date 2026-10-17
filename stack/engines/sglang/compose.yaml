@@ -18,6 +18,10 @@ services:
       ai-leverage.connect: "http://sglang:30000/v1 (in Open WebUI: Connections → OpenAI API, no key)"
       # ...and under it, the model this container was started with
       ai-leverage.info: "model: ${HUGGINGFACE_MODEL}"
+      # ...and where the menu asks whether it's ready: SGLang says "not yet"
+      # there until the model is loaded and warmed up, so until then the
+      # menu says LOADING, not UP
+      ai-leverage.ready: "http://localhost:${SGLANG_PORT:-30000}/health"
     volumes:
       # Models downloaded by stack/downloaders/huggingface, read-only: SGLang
       # can load them, but never change, delete or add anything there. Not

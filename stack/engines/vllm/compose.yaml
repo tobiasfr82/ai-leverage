@@ -17,6 +17,9 @@ services:
       ai-leverage.connect: "http://vllm:8000/v1 (in Open WebUI: Connections → OpenAI API, no key)"
       # ...and under it, the model this container was started with
       ai-leverage.info: "model: ${HUGGINGFACE_MODEL}"
+      # ...and where the menu asks whether it's ready: vLLM only answers once
+      # the model is loaded, so until then the menu says LOADING, not UP
+      ai-leverage.ready: "http://localhost:${VLLM_PORT:-8000}/health"
     volumes:
       # Models downloaded by stack/downloaders/huggingface, read-only: vLLM can
       # load them, but never change, delete or add anything there. So the files

@@ -1,0 +1,299 @@
+/* ai-leverage/src/python/menu.tcss
+ * How manage.sh's menu is laid out and coloured. The colours come from the
+ * theme ($primary, $success...), so every theme (ctrl+p → Theme) keeps their
+ * meaning: green runs, yellow wants attention, red is a problem.
+ */
+
+Screen {
+    layout: vertical;
+}
+
+/* A box with its title in the frame: the PC, the list, the panes */
+.panel {
+    background: $surface;
+    border: round $foreground 20%;
+    border-title-color: $text-muted;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    padding: 0 1;
+}
+.panel:focus, .panel:focus-within {
+    border: round $border;
+    border-title-color: $text;
+}
+
+#system {
+    height: auto;
+    border-title-color: $text-primary;
+    border-subtitle-align: right;
+}
+
+/* The menu bar at the top, like an app's, framed like the panels, so the
+   gap under it is the same as between them. No padding: a title's word then
+   lines up with the text in the panels (its highlight takes the space). */
+#menubar {
+    height: auto;
+    padding: 0;
+}
+
+/* An open menu, under its title; the menu around it stays as it is */
+MenuDropdown {
+    background: transparent;
+    align: left top;
+}
+/* A menu, and the menu beside it (▸); each placed where it belongs */
+.menu-box {
+    position: absolute;
+    height: auto;
+    background: $surface;
+    border: round $border;
+    padding: 0;
+}
+#submenu {
+    display: none;
+}
+.menu-box DropList, .menu-box DropList:focus {
+    height: auto;
+    border: none;
+    padding: 0;
+    background: $surface;
+}
+.menu-box DropList > .option-list--option {
+    padding: 0;
+}
+
+/* The main area is a grid: the list on the left, all the way down; on the
+   right, the highlighted entry's log, and what was done to it under that */
+#main {
+    height: 1fr;
+    layout: grid;
+    grid-size: 2 2;
+    grid-columns: 5fr 7fr;
+    grid-rows: 1fr 12;
+}
+/* From 128 columns, the list gets the room for its versions and update hints */
+Screen.-very-wide #main {
+    grid-columns: 64 1fr;
+}
+Screen.-short #main {
+    grid-rows: 1fr 8;
+}
+#stack {
+    row-span: 2;
+}
+#stack, #log, #actions {
+    width: 100%;
+    height: 100%;
+}
+
+/* A maximized pane takes the whole area; the list and the other pane wait */
+Screen.-maximized #stack, Screen.-maximized Pane {
+    display: none;
+}
+Screen.-maximized Pane.-max {
+    display: block;
+    column-span: 2;
+    row-span: 2;
+}
+
+/* Under 100 columns there's no room side by side: the list, then the panes under it */
+Screen.-narrow #main {
+    grid-size: 1 3;
+    grid-columns: 1fr;
+    grid-rows: 1fr 1fr 9;
+}
+Screen.-narrow.-short #main {
+    grid-rows: 1fr 1fr 7;
+}
+Screen.-narrow #stack {
+    row-span: 1;
+}
+Screen.-narrow.-maximized Pane.-max {
+    column-span: 1;
+    row-span: 3;
+}
+
+JumpList {
+    background: $surface;
+    scrollbar-size-vertical: 1;
+}
+/* The box around a list already shows where you are; no tint inside it */
+JumpList:focus {
+    background-tint: $foreground 0%;
+}
+JumpList > .option-list--option {
+    padding: 0 1;
+}
+/* The highlight is a band behind the text, so the colours in it stay readable:
+   strong in the list in use, faint where the choice is kept for later */
+JumpList > .option-list--option-highlighted {
+    background: $primary 18%;
+    color: $foreground;
+    text-style: none;
+}
+JumpList:focus > .option-list--option-highlighted {
+    background: $primary 38%;
+    color: $foreground;
+    text-style: bold;
+}
+JumpList > .option-list--option-hover {
+    background: $primary 10%;
+}
+
+/* The panes on the right: text, scrolled; their controls sit in the frame */
+Pane {
+    scrollbar-size-vertical: 1;
+    link-color: initial;
+    link-style: none;
+    link-color-hover: initial;
+    link-style-hover: none;
+    link-background-hover: $foreground 12%;
+}
+Pane:focus {
+    background-tint: $foreground 0%;
+}
+
+#keys {
+    dock: bottom;
+    height: 1;
+    background: $panel;
+    padding: 0 1;
+}
+
+/* What you can do with an entry, in a box over the menu */
+ActionsMenu {
+    align: center middle;
+    background: $background 50%;
+}
+#popup {
+    width: 78;
+    max-width: 95%;
+    height: auto;
+    max-height: 90%;
+    background: $surface;
+    border: round $border;
+    border-title-color: $text;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
+    padding: 0 2;
+}
+#popup-head {
+    height: auto;
+    margin: 1 0;
+}
+#popup-title {
+    height: 1;
+}
+#popup-actions, #popup-actions:focus {
+    height: auto;
+    max-height: 18;
+    border: none;
+    padding: 0;
+    background: $surface;
+}
+#popup-hint {
+    height: auto;
+    min-height: 2;
+    max-height: 4;
+    margin-bottom: 1;
+    border-top: solid $foreground 15%;
+}
+
+/* The update overview, in a bigger box over the menu */
+UpdatesMenu {
+    align: center middle;
+    background: $background 50%;
+}
+#updates {
+    width: 116;
+    max-width: 96%;
+    height: auto;
+    max-height: 94%;
+    background: $surface;
+    border: round $border;
+    border-title-color: $text;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
+    padding: 0 2;
+}
+#updates-head {
+    height: auto;
+    margin: 1 0;
+}
+#updates-list, #updates-list:focus {
+    height: auto;
+    border: none;
+    padding: 0;
+    background: $surface;
+}
+#updates-hint {
+    height: auto;
+    min-height: 2;
+    max-height: 4;
+    margin-bottom: 1;
+    border-top: solid $foreground 15%;
+}
+
+/* A yes/no question, over the menu */
+Confirm {
+    align: center middle;
+    background: $background 60%;
+}
+#dialog {
+    width: 66;
+    max-width: 90%;
+    height: auto;
+    background: $surface;
+    border: round $warning;
+    border-title-color: $warning;
+    border-title-style: bold;
+    padding: 1 2;
+}
+#question {
+    margin-bottom: 1;
+}
+#answers, #answers:focus {
+    height: auto;
+    border: none;
+    padding: 0;
+    background: $surface;
+}
+
+/* Facts in a box over the menu, such as About */
+InfoBox {
+    align: center middle;
+    background: $background 50%;
+}
+#infobox {
+    width: 84;
+    max-width: 95%;
+    height: auto;
+    max-height: 90%;
+    background: $surface;
+    border: round $border;
+    border-title-color: $text;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
+    padding: 1 2;
+}
+
+/* A README, full screen */
+#page {
+    height: 1fr;
+    background: $surface;
+    border: round $border;
+    border-title-color: $text;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
+    padding: 0 2;
+}
+#reader-keys {
+    dock: bottom;
+    height: 1;
+    background: $panel;
+    padding: 0 1;
+}

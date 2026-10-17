@@ -6,6 +6,8 @@
 # installed extensions. restore_settings.sh puts a backup back.
 # Uninstalling VS Code leaves these settings alone anyway. A backup is for a
 # fresh start, or to take your setup to another PC.
+#
+# menu: console   (manage.sh's menu shows what it prints without leaving the menu: it never asks anything)
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="$APP_DIR/data/backups"

@@ -16,8 +16,8 @@ from the environment variables in `compose.yaml`. They are pre-set to:
 - also list Hermes as `hermes-agent` (`http://hermes:8642/v1`), if
   **hermes → connect_openwebui** has saved Hermes's key before this first start
 - read uploaded documents with Docling (`http://docling:5001`)
-- search documents with Ollama embeddings (`rag/qwen3-embedding:8b`, which
-  **downloaders → ollama → sync_models** builds from `stack/downloaders/ollama/specs/`)
+- search documents with Ollama embeddings (`rag/qwen3-embedding:8b`, which **Models ›
+  Downloaders › ollama → sync_models** builds from `stack/downloaders/ollama/specs/`)
 
 The only manual step is creating your admin account on the first visit.
 
@@ -54,10 +54,10 @@ llama.cpp: add their connection here by hand. Open WebUI lists their models whil
 ## Back up before updates or big changes
 
 A new version of Open WebUI converts its database on its first start, and an older version
-may not read it anymore. So **Update** (in its menu, or in the update overview) offers to
-back up `data/` first, while Open WebUI is stopped, to `backups/services/openwebui/` at the
-top of the repo. The copy leaves out `data/cache`, the models Open WebUI downloads again by
-itself (about 1 GB). **Revert** then offers to put it back.
+may not read it anymore. So **Update** backs up `data/` first, while Open WebUI is
+stopped, to `backups/services/openwebui/` at the top of the repo: the menu says so before
+it starts, and in a terminal it asks. The copy leaves out `data/cache`, the models Open
+WebUI downloads again by itself (about 1 GB). **Revert** then puts it back.
 
 Before other big changes, such as a big import, make one yourself. Stop Open WebUI first,
 so the copy is complete, then:

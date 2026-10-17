@@ -1,0 +1,14 @@
+#!/bin/bash
+# ai-leverage/src/bash/console/sudo
+# sudo for what manage.sh's menu runs in its console, which puts this folder
+# first on PATH for it. Nobody can type a password into the console, so sudo
+# mustn't wait for one there: this runs the real sudo with -n. That works
+# while sudo still remembers your password, which the menu checks before it
+# runs anything, and otherwise stops at once with "a password is required".
+# Named sudo, not sudo.sh, so scripts find it instead of the real one. In a
+# terminal of your own, scripts use the real sudo, which asks as usual.
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The real sudo: the first one on PATH that isn't this one
+PATH=$(printf '%s' ":$PATH:" | sed "s|:$HERE:|:|g; s|^:||; s|:$||")
+exec sudo -n "$@"

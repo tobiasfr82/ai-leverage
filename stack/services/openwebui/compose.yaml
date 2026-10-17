@@ -11,6 +11,9 @@ services:
       # set OPENWEBUI_BIND_ADDRESS in a local .env file (see .env.template).
       - "${OPENWEBUI_BIND_ADDRESS:-127.0.0.1}:${OPENWEBUI_PORT:-3000}:8080"
     labels:
+      # Where the menu asks whether it's ready: Open WebUI takes a while to
+      # start, and the menu says LOADING, not UP, until it answers
+      ai-leverage.ready: "http://${OPENWEBUI_BIND_ADDRESS:-127.0.0.1}:${OPENWEBUI_PORT:-3000}/health"
       # Where the update check finds the version: the image's own label only
       # says "main", so read it from Open WebUI's package file
       ai-leverage.version-command: "grep -m1 '\"version\"' /app/package.json"

@@ -6,8 +6,7 @@ top of the repo, and builds the custom models in `specs/`. The engine itself is 
 
 ## How it downloads
 
-Ollama can only download its models through Ollama itself. So **downloaders → ollama →
-sync_models** starts a temporary Ollama of its own, just for downloading:
+Ollama can only download its models through Ollama itself. So **Models › Downloaders › ollama → sync_models** starts a temporary Ollama of its own, just for downloading:
 
 - **It gets no GPU and no open port,** so it never takes memory from an engine that runs,
   for example vLLM while Hermes works with it.
@@ -36,8 +35,8 @@ qwen3-embedding:8b ──────► rag/qwen3-embedding:8b   8k context, Op
 - **A spec model takes no extra disk space.** It reuses its base model's files and only adds
   settings: context size, temperature, a system prompt.
 - **It cannot be downloaded,** because it only exists as a recipe in `specs/`.
-  **downloaders → ollama → sync_models** builds every spec after the downloads, and fetches
-  a spec's base model even if `models.txt` doesn't list it.
+  **Models › Downloaders › ollama → sync_models** builds every spec after the downloads, and
+  fetches a spec's base model even if `models.txt` doesn't list it.
 - **Don't list spec models in `models.txt`.** `sync_models` knows them from `specs/` and
   never offers to delete them or the models they are built on.
 

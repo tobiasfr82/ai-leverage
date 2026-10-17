@@ -33,6 +33,9 @@ config/*.conf
 # Ignore what ai-leverage looked up and can look up again
 cache/
 
+# Ignore the console tabs you saved from the menu (s in its console)
+logs/
+
 # Ignore each service's own data (settings, chats, uploads, keys)
 stack/**/data/
 stack/**/output/

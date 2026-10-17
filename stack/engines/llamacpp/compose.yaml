@@ -22,6 +22,9 @@ services:
       ai-leverage.connect: "http://llamacpp:8080/v1 (in Open WebUI: Connections → OpenAI API, no key)"
       # ...and under it, where its models are picked
       ai-leverage.info: "models: picked in Open WebUI; list_models shows them"
+      # ...and where the menu asks whether it's ready. llama.cpp answers within
+      # seconds, because it loads a model only when a chat asks for one.
+      ai-leverage.ready: "http://localhost:${LLAMACPP_PORT:-8080}/health"
     volumes:
       # Models downloaded by stack/downloaders/huggingface, read-only: llama.cpp
       # can load the GGUF ones, but never change, delete or add anything there.

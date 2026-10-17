@@ -6,6 +6,7 @@
 #   2. Docker with the Compose plugin - runs the engines and services in stack/
 #   3. NVIDIA Container Toolkit - lets Docker hand the GPU to a service
 #   4. The shared "ai-leverage" Docker network
+#   5. The menu's Python environment (Textual, which draws manage.sh's menu)
 # Afterwards, start the services with ./manage.sh.
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -133,6 +134,14 @@ if command -v docker &> /dev/null; then
         || echo "Could not create the shared Docker network now; manage.sh will try again later."
 else
     echo "Docker not found. Skipping the shared Docker network."
+fi
+
+# --- 5. The menu's Python environment ---
+# manage.sh's menu is drawn with Textual. uv puts it in src/python/.venv, at the
+# version src/python/uv.lock names. Not fatal: manage.sh does it too on its first start.
+if command -v uv &> /dev/null; then
+    uv sync --project "$REPO_DIR/src/python" --locked \
+        || echo "Could not set up the menu's Python environment now; manage.sh will try again."
 fi
 
 echo "Environment bootstrap complete! Start the services with ./manage.sh"

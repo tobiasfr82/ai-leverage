@@ -13,6 +13,9 @@ services:
       # ...and the address other containers use, such as Open WebUI: the
       # container's name and its own port, the same whatever .env says
       ai-leverage.connect: "http://ollama:11434 (in Open WebUI: Connections → Ollama API)"
+      # ...and where the menu asks whether it's ready. Ollama answers within
+      # seconds, because it loads a model only when a chat asks for one.
+      ai-leverage.ready: "http://localhost:${OLLAMA_PORT:-11434}/api/version"
       # Where the update check finds the version: the image's own label names
       # the Ubuntu it's built on, so ask Ollama, and its GitHub releases
       ai-leverage.version-command: "ollama --version"

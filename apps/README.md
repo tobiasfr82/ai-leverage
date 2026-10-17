@@ -12,14 +12,16 @@ the same actions, whatever it's installed with:
 | **Hold / Release** | Hold keeps it at its version, so Update skips it. Release ends the hold.                            |
 | **Uninstall**      | Removes the program and the source it came from. Your own files and settings stay.                  |
 
-The menu shows each app's state: **[INSTALLED]**, **[HELD]** (installed, and Update skips
-it), **[OTHER INSTALL]** (installed some other way, and where) or **[NOT INSTALLED]**.
+The menu shows each app's state: **● INSTALLED**, **● HELD** (installed, and Update skips
+it), **◐ OTHER INSTALL** (installed some other way, and where) or **○ NOT INSTALLED**.
+Update, Revert and Hold show what they do in the app's pane under the log; Install and
+Uninstall run in the plain terminal, because they can ask more.
 
 - **Stable releases only.** Where a maker offers a stable and a faster channel, the app
   follows stable: Claude Code's stable apt channel, VS Code without Insiders, Obsidian's
   release on Flathub, and OpenCode's GitHub releases without pre-releases.
-- **Nothing here updates on its own.** Update goes online when you choose it. **u** in the
-  main menu checks every app, engine and service at once; see
+- **Nothing here updates on its own.** Update goes online when you choose it. **Stack ›
+  Updates** in the menu checks every app, engine and service at once; see
   [the main README](../README.md#-updates).
 - **One revert point per app:** the version the last Update replaced, kept in
   `apps/<app>/data/revert/` (git-ignored). For an apt app that's the package file, about
@@ -56,7 +58,7 @@ it), **[OTHER INSTALL]** (installed some other way, and where) or **[NOT INSTALL
   into `apps/vscode/data/backups/`, and **restore_settings** puts a backup back. Close VS
   Code before restoring.
 - **Claude Code** from Anthropic's own installer (`claude.ai/install.sh`) lives in
-  `~/.local/bin` and updates itself. The menu shows that copy as [OTHER INSTALL], and
+  `~/.local/bin` and updates itself. The menu shows that copy as OTHER INSTALL, and
   Install replaces it with the apt package, which doesn't update itself. `~/.claude` and
   `~/.claude.json` (settings, sign-in, history) stay. The VS Code extension brings its own
   copy, which VS Code keeps up to date.

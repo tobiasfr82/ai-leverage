@@ -6,7 +6,7 @@ the shared `models/huggingface` folder. On this PC it answers at
 
 ## First start
 
-1. Download models with **downloaders → huggingface → sync_models**.
+1. Download models with **Models › Downloaders › huggingface → sync_models**.
 2. Run **engines → sglang → set_model** and pick one. It saves your choice in `.env`,
    creates the admin key (see below) and offers to start SGLang.
 3. Follow the start in **sglang → View logs**. It is ready when the log says

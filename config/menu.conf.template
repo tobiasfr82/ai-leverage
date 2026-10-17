@@ -1,0 +1,12 @@
+# ai-leverage/config/menu.conf.template
+# How manage.sh's menu looks. Your own choice goes in menu.conf next to this
+# file, which git ignores. The menu writes it when you pick a theme
+# (ctrl+p, then Theme), or edit it by hand:
+#   cp menu.conf.template menu.conf
+
+# The colours: one of Textual's themes. tokyo-night (default), textual-dark,
+# nord, gruvbox, dracula, monokai, flexoki, catppuccin-mocha, rose-pine,
+# solarized-dark, atom-one-dark, and light ones such as textual-light,
+# catppuccin-latte, solarized-light. ansi-dark and ansi-light use your
+# terminal's own colours.
+#MENU_THEME=tokyo-night

@@ -1,18 +1,24 @@
 #!/bin/bash
 # ai-leverage/src/bash/check-updates.sh
-# The update overview, opened with u in manage.sh. It lists every engine,
-# service and app with its version on this PC and the newest stable release,
-# looked up online without downloading anything. From here: Update all of
-# them one after another, or Update, Revert or Hold one. The steps are the
-# same as in each one's own menu (service.sh, app.sh). Below them, the tools
-# ai-leverage relies on, for information: they're updated another way.
+# The update overview. It lists every engine, service and app with its
+# version on this PC and the newest stable release, looked up online without
+# downloading anything. From here: Update all of them one after another, or
+# Update, Revert or Hold one. The steps are the same as in each one's own
+# menu (service.sh, app.sh). Below them, the tools ai-leverage relies on, for
+# information: they're updated another way.
 #
 # It goes online when it opens and when you check again, never on its own.
+# manage.sh's menu shows the same overview in a box of its own (Stack › Updates): it
+# runs this with --print and does the steps in its panes.
 #
-# Usage: check-updates.sh [folder...]
-#   The stack and app folders to list, in this order; manage.sh passes the
-#   ones in its menu. Without any: every folder in stack/ with a compose
-#   file, then every app in apps/.
+# Usage: check-updates.sh [--print] [folder...]
+#   The stack and app folders to list, in this order. Without any: every
+#   folder in stack/ with a compose file, then every app in apps/.
+#   --print  only check, and print what it finds, one line each as it comes,
+#            without asking anything:
+#              row|<folder>|result|installed|newest|note
+#              tool|<name>|version|newest|note
+#            (result as in update-common.sh's do_check)
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT_DIR="$BASE_DIR/src/bash"
@@ -47,9 +53,18 @@ add_row() {
     fi
 }
 
+PRINT=false
+if [ "${1:-}" == --print ]; then
+    PRINT=true
+    shift
+fi
+# Whether every folder is checked: then what was kept for folders that are
+# gone can go too
+EVERY_FOLDER=false
 if [ $# -gt 0 ]; then
     for arg in "$@"; do add_row "$arg"; done
 else
+    EVERY_FOLDER=true
     for dir in "$BASE_DIR"/stack/*/*/ "$BASE_DIR"/apps/*/; do add_row "$dir"; done
 fi
 
@@ -120,6 +135,12 @@ check_tools() {
         TOOL_LINES+=("uv|$version|$newest|$note")
     fi
 
+    # Textual draws the menus. src/python/uv.lock pins its version, so it
+    # moves with ai-leverage itself, not on its own.
+    version=$("$BASE_DIR/src/python/.venv/bin/python" -I -c \
+        'import importlib.metadata as m; print(m.version("textual"))' 2> /dev/null)
+    [ -n "$version" ] && TOOL_LINES+=("Textual|$version||draws the menus; it moves with ai-leverage (git pull)")
+
     # Docker and the NVIDIA Container Toolkit come with the system's updates
     if command -v docker &> /dev/null; then
         version=$(docker --version 2> /dev/null | sed -n 's/^Docker version \([^,]*\).*/\1/p')
@@ -155,7 +176,6 @@ check_all() {
     sudo -v || exit 1
     echo -e "${CYAN}Looking online for newer versions of $services engines and services, $apps apps"
     echo -e "and the tools. Nothing is downloaded...${NC}"
-    rm -f "$UPDATE_CACHE_DIR"/*
     local tools
     tools=$(mktemp)
     check_tools_to "$tools" &
@@ -163,15 +183,61 @@ check_all() {
     wait
     mapfile -t TOOL_LINES < "$tools"
     rm -f "$tools"
-    mkdir -p "$UPDATE_CACHE_DIR"
-    touch "$UPDATE_CACHE_DIR/.checked"
+    checked
     CHECKED_AT=$(date +%H:%M)
 }
 
-# check_tools in the background, its lines into a file
+# check_tools in the background, its lines into a file, and kept for the
+# menu, which shows them before it checks again
 check_tools_to() {
     check_tools
     printf '%s\n' "${TOOL_LINES[@]}" > "$1"
+    mkdir -p "$UPDATE_CACHE_DIR"
+    printf '%s\n' "${TOOL_LINES[@]}" > "$UPDATE_CACHE_DIR/.tools"
+}
+
+# When the check was done, for the main menu. A check of every folder also
+# drops what was kept for folders that are gone.
+checked() {
+    local keep=" " i rel file
+    mkdir -p "$UPDATE_CACHE_DIR"
+    touch "$UPDATE_CACHE_DIR/.checked"
+    $EVERY_FOLDER || return 0
+    for i in "${!ROW_PATH[@]}"; do
+        rel=${ROW_PATH[$i]#"$BASE_DIR"/}
+        keep+="${rel//\//-} "
+    done
+    for file in "$UPDATE_CACHE_DIR"/*; do
+        [ -f "$file" ] || continue
+        [[ "$keep" == *" $(basename "$file") "* ]] || rm -f "$file"
+    done
+}
+
+# --print: every check side by side, as in check_rows, each line printed as
+# soon as its check is done. One echo is one write, so lines never mix.
+print_all() {
+    sudo -v || exit 1
+    local i
+    (
+        check_tools_to /dev/null
+        for i in "${TOOL_LINES[@]}"; do echo "tool|$i"; done
+    ) &
+    for i in "${!ROW_PATH[@]}"; do
+        [ "${ROW_KIND[$i]}" == service ] && print_row "$i" &
+    done
+    (
+        for i in "${!ROW_PATH[@]}"; do
+            [ "${ROW_KIND[$i]}" == app ] && print_row "$i"
+        done
+    ) &
+    wait
+    checked
+}
+
+print_row() {
+    local found
+    found=$("$(tool_of "$1")" "${ROW_PATH[$1]}" check 2> /dev/null < /dev/null | head -n 1)
+    echo "row|${ROW_PATH[$1]}|${found:-failed|||}"
 }
 
 # --- Drawing ---
@@ -324,7 +390,7 @@ row_menu() {
         # Before clearing the screen, in case sudo asks for your password
         IFS='|' read -r state version held previous label _ < <("$(tool_of "$i")" "${ROW_PATH[$i]}" status)
         # An app's own name, such as OpenCode; a service goes by its folder
-        label=${label:-$name}
+        [ "${ROW_KIND[$i]}" == app ] && [ -n "$label" ] || label=$name
         load_states
         clear
         echo -e "${BOLD}AI LEVERAGE${NC} > ${YELLOW}Updates > $name${NC} $(row_status "$i") $version"
@@ -424,6 +490,11 @@ after a Revert. The backups (in backups/) let Revert put it back.${NC}"
 
 if [ ${#ROW_PATH[@]} -eq 0 ]; then
     echo "Nothing to check: no stack folder with a compose file, and no app."
+    exit 0
+fi
+
+if $PRINT; then
+    print_all
     exit 0
 fi
 

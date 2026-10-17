@@ -21,6 +21,9 @@ services:
       # ...and the address other containers use, such as Open WebUI: the
       # container's name and its own port, the same whatever .env says
       ai-leverage.connect: "http://docling:5001 (in Open WebUI: Documents → Docling)"
+      # ...and where the menu asks whether it's ready: Docling says "not yet"
+      # there until its models are loaded
+      ai-leverage.ready: "http://localhost:${DOCLING_PORT:-5001}/ready"
       # Update follows the newest release of this GitHub project
       ai-leverage.follow: "releases"
       ai-leverage.releases: "docling-project/docling-serve"

@@ -9,6 +9,8 @@
 # compares all engines).
 # What's downloaded comes from src/python/model_facts.py, which names the
 # files by the same rules as the downloader and llama.cpp (gguf_names.py).
+#
+# menu: console   (manage.sh's menu shows what it prints without leaving the menu: it never asks anything)
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 PYTHON_DIR="../../../src/python"

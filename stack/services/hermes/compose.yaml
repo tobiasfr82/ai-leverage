@@ -18,6 +18,8 @@ services:
       # ...and the address other containers use, such as Open WebUI: the
       # container's name and its own port, the same whatever .env says
       ai-leverage.connect: "http://hermes:8642/v1 (in Open WebUI: Connections → OpenAI API, key from connect_openwebui)"
+      # ...and where the menu asks whether it's ready (no key needed there)
+      ai-leverage.ready: "http://localhost:${HERMES_PORT:-8642}/health"
       # Where the update check finds the version: the image has no label for
       # it, so ask Hermes, and its GitHub releases
       ai-leverage.version-command: "hermes --version"

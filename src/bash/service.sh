@@ -1,9 +1,14 @@
 #!/bin/bash
 # ai-leverage/src/bash/service.sh
-# Updates the engines and services in stack/ the way app.sh updates the apps,
-# with the same steps (update-common.sh). Each follows the newest stable
-# release of its Docker image. Update first keeps the image it replaces, so
-# Revert can go back to it; Hold keeps it where it is.
+# Runs and updates the engines and services in stack/: Start, Stop, Restart,
+# Rebuild and their logs, and Update, Revert and Hold the way app.sh does them
+# for the apps, with the same steps (update-common.sh). manage.sh's menu runs
+# this script for all of them, so each command it shows works the
+# same typed in a terminal, e.g. src/bash/service.sh stack/engines/vllm start
+#
+# Each follows the newest stable release of its Docker image. Update first
+# keeps the image it replaces, so Revert can go back to it; Hold keeps it
+# where it is.
 #
 # The version numbers come from the image's own version label. When an image
 # has none, or a wrong one, its compose.yaml names a command that prints the
@@ -19,10 +24,22 @@
 #   ai-leverage.follow: "releases"
 #   ai-leverage.releases: "docling-project/docling-serve"
 #
-# Usage: service.sh <stack folder> <action> [--yes]
+# Usage: service.sh <stack folder> <action> [options]
+#   start    start it, or create its container first; applies changes in its .env
+#   stop     stop it; its settings and data stay
+#   restart  stop and start it again as it is (changes in its .env need start)
+#   rebuild  delete its container and create it again from the images on this
+#            PC, after asking; its settings and data stay
+#   logs     what it printed since its last start (at most the last 500
+#            lines): while it runs, that and then as it comes (ctrl+c stops
+#            following); once stopped, its last run. Docker keeps the log
+#            until the container is deleted (rebuild, or a start that
+#            creates it again). --follow, --since <time> and --tail <lines>
+#            work as in docker compose logs instead
 #   status   one line for manage.sh, without going online:
-#            state|version|held|previous
-#            state is downloaded, or missing (Start downloads it)
+#            state|version|held|previous|backup
+#            state is downloaded, or missing (Start downloads it); backup is
+#            the copy of its data Revert would put back, if Update made one
 #   check    look online for a newer version, without downloading it:
 #            result|installed|newest|note (see update-common.sh)
 #   update   download the newest version, after asking; restarts it if it runs
@@ -31,8 +48,8 @@
 #   release  end the hold
 #   data     what Update backs up first, as "what it holds|size"; nothing
 #            when it keeps no data of its own (see load_data)
-#   --yes    don't ask first (the update overview's Update all asks once);
-#            data is backed up
+#   --yes    don't ask first (the menu asks in a dialog of its own, and the
+#            update overview's Update all asks once); data is backed up
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT_DIR="$BASE_DIR/src/bash"
@@ -43,11 +60,27 @@ usage() {
     exit 1
 }
 
-[ $# -eq 2 ] || { [ $# -eq 3 ] && [ "$3" == --yes ]; } || usage
-ACTION=$2
-[ "${3:-}" == --yes ] && ASSUME_YES=true
+[ $# -ge 2 ] || usage
+FOLDER=$1 ACTION=$2
+shift 2
+FOLLOW=false LOG_ARGS=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --yes) ASSUME_YES=true ;;
+        --follow) FOLLOW=true ;;
+        --since | --tail)
+            [ $# -ge 2 ] || usage
+            LOG_ARGS+=("$1" "$2")
+            shift
+            ;;
+        *) usage ;;
+    esac
+    shift
+done
+# The log's options are only for logs
+{ ! $FOLLOW && [ ${#LOG_ARGS[@]} -eq 0 ]; } || [ "$ACTION" == logs ] || usage
 
-SERVICE_DIR="$(cd "$1" 2> /dev/null && pwd)" || { echo "No folder $1"; exit 1; }
+SERVICE_DIR="$(cd "$FOLDER" 2> /dev/null && pwd)" || { echo "No folder $FOLDER"; exit 1; }
 [ -f "$SERVICE_DIR/compose.yaml" ] || [ -f "$SERVICE_DIR/docker-compose.yml" ] ||
     { echo "No compose file in $SERVICE_DIR"; exit 1; }
 
@@ -70,6 +103,72 @@ CACHE_KEY=${REL//\//-}
 VERSION_CACHE_DIR="$BASE_DIR/cache/image-versions"
 
 compose() { (cd "$SERVICE_DIR" && sudo docker compose "$@"); }
+
+# --- Running it ---
+# Start, Stop, Restart, Rebuild and the logs need nothing looked up first, so
+# they run before the images are read (at the bottom of this file).
+
+DIM='\033[2m'
+
+# The shared network every container joins. It says something only when it
+# creates it, or can't.
+ensure_network() {
+    local out
+    out=$("$SCRIPT_DIR/docker-create-network.sh") || { echo "$out"; return 1; }
+    [[ "$out" == *"already exists"* ]] || echo "$out"
+}
+
+do_start()   { ensure_network && compose up -d; }
+do_stop()    { compose stop; }
+do_restart() { ensure_network && compose restart; }
+
+do_rebuild() {
+    echo "Rebuild deletes $APP's container and creates it again from the images on this PC."
+    echo "Its settings and data stay. To get a newer version, use update instead."
+    ask "Rebuild $APP?" || { echo "Nothing changed."; return 0; }
+    ensure_network && compose down && compose up -d --build
+}
+
+do_logs() {
+    local args=(logs --no-log-prefix "${LOG_ARGS[@]}")
+    $FOLLOW && args+=(--follow)
+    if $FOLLOW || [ ${#LOG_ARGS[@]} -gt 0 ]; then
+        compose "${args[@]}"
+        return
+    fi
+    local container started
+    container=$(compose ps -a -q 2> /dev/null | head -n 1)
+    if [ -z "$container" ]; then
+        echo "$APP has no container yet, so no log. Start creates it."
+        return 1
+    fi
+    started=$(sudo docker inspect -f '{{.State.StartedAt}}' "$container" 2> /dev/null)
+    if [[ "$started" == 0001-* ]]; then
+        echo "$APP's container was created but never started, so it has no log yet."
+        return 0
+    fi
+    [ -n "$started" ] && args+=(--since "$started")
+    args+=(--tail 500)
+    if is_running; then
+        echo -e "${DIM}── $APP's log since it started $(when "$started"). ctrl+c stops following ──${NC}"
+        compose "${args[@]}" --follow
+    else
+        echo -e "${DIM}── $APP's last run, from $(when "$started") until it stopped $(when \
+            "$(sudo docker inspect -f '{{.State.FinishedAt}}' "$container" 2> /dev/null)") ──${NC}"
+        compose "${args[@]}"
+    fi
+}
+
+# A time Docker gave, as said: "at 19:42" today, else "on Oct 14 at 19:42"
+when() {
+    local day
+    day=$(date -d "$1" +%F 2> /dev/null) || { echo "at an unknown time"; return; }
+    if [ "$day" == "$(date +%F)" ]; then
+        date -d "$1" +"at %H:%M"
+    else
+        date -d "$1" +"on %b %-d at %H:%M"
+    fi
+}
 
 # --- What the compose file names ---
 
@@ -559,15 +658,27 @@ docker_release() { rm -f "$HOLD_FILE"; }
 docker_held()    { [ -f "$HOLD_FILE" ]; }
 
 do_status() {
-    local st=missing version="" held="" previous=""
+    local st=missing version="" held="" previous="" backup=""
     if m installed; then
         st=downloaded
         version=$(m version)
     fi
     m held && held=held
-    read_previous && previous=$VERSION
-    echo "$st|$version|$held|$previous"
+    if read_previous; then
+        previous=$VERSION
+        backup=$(cat "$REVERT_DIR/backup" 2> /dev/null)
+        [ -f "$backup" ] && backup=${backup#"$BASE_DIR"/} || backup=""
+    fi
+    echo "$st|$version|$held|$previous|$backup"
 }
+
+case "$ACTION" in
+    start)   do_start; exit ;;
+    stop)    do_stop; exit ;;
+    restart) do_restart; exit ;;
+    rebuild) do_rebuild; exit ;;
+    logs)    do_logs; exit ;;
+esac
 
 load_services
 load_local

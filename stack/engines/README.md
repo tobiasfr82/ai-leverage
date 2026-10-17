@@ -30,8 +30,8 @@ minutes without a chat; see [Hardware](../../README.md#-hardware).
 
 All three read `models/huggingface` read-only and never go online, so they can't change
 your downloads and every file in there stays yours. In exchange, a model only runs once
-**downloaders → huggingface → sync_models** has fetched all of it. Each one picks out the
-kind of model it can run, so they share the folder without seeing each other's models.
+**Models › Downloaders › huggingface → sync_models** has fetched all of it. Each one picks out
+the kind of model it can run, so they share the folder without seeing each other's models.
 
 - vLLM's and SGLang's **set_model** shows what to do: it lists models from `models.txt` that
   aren't downloaded yet, and marks a download that lacks something, for example

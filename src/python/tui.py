@@ -162,7 +162,8 @@ class JumpList(OptionList):
         key can still be chosen with the arrows or the mouse. The highlight
         stays on the entry with the same id when there is one, or else goes to
         the entry prefer names."""
-        parked = self.highlighted is None and (self.parked or (not self.has_focus and self.options))
+        # bool(): the options are a list set_options fills, so a list empty until now isn't parked
+        parked = self.highlighted is None and (self.parked or (not self.has_focus and bool(self.options)))
         was = self.highlighted_option.id if keep and self.highlighted_option else None
         self.keys, self.reasons, options = {}, {}, []
         for key, text, option_id, why in entries:

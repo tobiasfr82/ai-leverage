@@ -416,3 +416,96 @@ InfoBox {
     background: $panel;
     padding: 0 1;
 }
+
+/* The model fit, full screen: what you need at the top, the models for it,
+   and the one the list highlights in the panel under them, as high as it
+   needs and at most a little under half the screen (the mouse scrolls the
+   rest). The screen itself never scrolls, so the rows keep their width. */
+/* Text in the panels starts where the lists' text does, one column in */
+#fit-goal {
+    height: auto;
+    padding: 0 2;
+    border-subtitle-align: right;
+    link-color: initial;
+    link-style: none;
+    link-color-hover: initial;
+    link-style-hover: none;
+    link-background-hover: $foreground 12%;
+}
+FitScreen {
+    overflow: hidden;
+}
+#fit-models {
+    height: 1fr;
+    min-height: 6;
+    border-subtitle-align: right;
+}
+#fit-head, #fit-ways-head {
+    height: 1;
+}
+#fit-list, #fit-list:focus {
+    height: 1fr;
+    border: none;
+    padding: 0;
+}
+#fit-detail {
+    height: auto;
+    max-height: 45%;
+    border-subtitle-align: right;
+    scrollbar-size-vertical: 1;
+    scrollbar-background: $surface;
+    scrollbar-background-hover: $surface;
+    scrollbar-background-active: $surface;
+}
+#fit-ways, #fit-ways:focus {
+    height: auto;
+    border: none;
+    padding: 0;
+}
+#fit-more {
+    height: auto;
+    margin-top: 1;
+    padding: 0 1;
+}
+#fit-keys {
+    dock: bottom;
+    height: 1;
+    background: $panel;
+    padding: 0 1;
+}
+
+/* A context size of your own, asked over the fit */
+SizeBox {
+    align: center middle;
+    background: $background 50%;
+}
+#sizebox {
+    width: 66;
+    max-width: 90%;
+    height: auto;
+    background: $surface;
+    border: round $border;
+    border-title-color: $text;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
+    padding: 1 2;
+}
+#sizebox-text {
+    margin-bottom: 1;
+}
+/* Framed like the panels, the frame lit while you type */
+#sizebox-input {
+    height: 3;
+    background: $surface;
+    border: round $foreground 20%;
+    padding: 0 1;
+}
+#sizebox-input:focus {
+    border: round $border;
+    background-tint: $foreground 0%;
+}
+#sizebox-why {
+    height: auto;
+    margin-top: 1;
+}

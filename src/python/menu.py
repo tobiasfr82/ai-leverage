@@ -70,8 +70,8 @@ from tui import MUTED, JumpList, MenuList, fit, pill  # noqa: E402
 from menubar import Entry, MenuBar, MenuDropdown, mnemonics  # noqa: E402
 from updates import UpdatesMenu, newest_of  # noqa: E402
 from notices import KEEP, KEEP_CHOICES, Notice, NoticeColumn, RunWindow  # noqa: E402
+from fit_screen import FitScreen  # noqa: E402
 
-HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_DIR = stack.SCRIPT_DIR
 GiB = system.GiB
 
@@ -1345,12 +1345,10 @@ class Menu(App):
         self.draw_menubar()
 
     def run_tool(self, tool):
-        python = [sys.executable, "-I"]
         if tool == "updates":
             self.open_updates()
         elif tool == "fit":
-            self.step("AI LEVERAGE › model fit", [([*python, os.path.join(HERE, "fit_screen.py")], None, "")],
-                      pause=False)
+            self.push_screen(FitScreen())
         elif tool in ("monitor", "ports"):
             script = os.path.join(SCRIPT_DIR, "monitor-system.sh" if tool == "monitor" else "docker-list-ports.sh")
             if tui.open_window([script]):

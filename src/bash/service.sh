@@ -25,7 +25,9 @@
 #   ai-leverage.releases: "docling-project/docling-serve"
 #
 # Usage: service.sh <stack folder> <action> [options]
-#   start    start it, or create its container first; applies changes in its .env
+#   start    start it, or create its container first; applies changes in its .env,
+#            and creates the random keys its compose file asks for there
+#            (the ai-leverage.secrets label, see make_secrets)
 #   stop     stop it; its settings and data stay
 #   restart  stop and start it again as it is (changes in its .env need start)
 #   rebuild  delete its container and create it again from the images on this
@@ -118,7 +120,45 @@ ensure_network() {
     [[ "$out" == *"already exists"* ]] || echo "$out"
 }
 
-do_start()   { ensure_network && compose up -d; }
+# Random values its compose file needs, such as an encryption key, which every
+# install needs its own of, so none can be in the repo. It names them in a
+# label, and the ones its .env doesn't have yet are created there: git ignores
+# .env, it's readable only by you, and the compose file reads them from it.
+#   ai-leverage.secrets: "OPEN_NOTEBOOK_ENCRYPTION_KEY SURREAL_PASSWORD"
+make_secrets() {
+    local file="$SERVICE_DIR/.env" names name value made=()
+    names=$(cd "$SERVICE_DIR" && docker compose config --no-interpolate --format json 2> /dev/null |
+        python3 -I -c '
+import json, sys
+names = []
+for service in json.load(sys.stdin).get("services", {}).values():
+    labels = service.get("labels") or {}
+    if isinstance(labels, list):
+        labels = dict(label.split("=", 1) for label in labels if "=" in label)
+    names += [n for n in labels.get("ai-leverage.secrets", "").split() if n not in names]
+print(" ".join(names))
+')
+    for name in $names; do
+        [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+        grep -qE "^$name=.+" "$file" 2> /dev/null && continue
+        if [ ! -f "$file" ]; then
+            cp "$SERVICE_DIR/.env.template" "$file" 2> /dev/null || : > "$file"
+        fi
+        [ ${#made[@]} -gt 0 ] || printf '\n# Created by Start: random keys of this install. Keep them with data/.\n' >> "$file"
+        value=$(python3 -I -c 'import secrets; print(secrets.token_hex(32))') || return 1
+        if grep -q "^$name=" "$file"; then
+            sed -i "s|^$name=.*|$name=$value|" "$file"
+        else
+            echo "$name=$value" >> "$file"
+        fi
+        made+=("$name")
+    done
+    [ ${#made[@]} -gt 0 ] || return 0
+    chmod 600 "$file"
+    echo "Created ${made[*]} in ${file#"$BASE_DIR"/}: random, for this install only."
+}
+
+do_start()   { make_secrets && ensure_network && compose up -d; }
 do_stop()    { compose stop; }
 do_restart() { ensure_network && compose restart; }
 
@@ -126,7 +166,7 @@ do_rebuild() {
     echo "Rebuild deletes $APP's container and creates it again from the images on this PC."
     echo "Its settings and data stay. To get a newer version, use update instead."
     ask "Rebuild $APP?" || { echo "Nothing changed."; return 0; }
-    ensure_network && compose down && compose up -d --build
+    make_secrets && ensure_network && compose down && compose up -d --build
 }
 
 do_logs() {
@@ -136,25 +176,28 @@ do_logs() {
         compose "${args[@]}"
         return
     fi
-    local container started
-    container=$(compose ps -a -q 2> /dev/null | head -n 1)
-    if [ -z "$container" ]; then
+    local containers started
+    containers=$(compose ps -a -q 2> /dev/null)
+    if [ -z "$containers" ]; then
         echo "$APP has no container yet, so no log. Start creates it."
         return 1
     fi
-    started=$(sudo docker inspect -f '{{.State.StartedAt}}' "$container" 2> /dev/null)
-    if [[ "$started" == 0001-* ]]; then
+    # With several containers, since the first of them started
+    # shellcheck disable=SC2086 # one container ID per word
+    started=$(sudo docker inspect -f '{{.State.StartedAt}}' $containers 2> /dev/null | grep -v '^0001-' | sort | head -n 1)
+    if [ -z "$started" ]; then
         echo "$APP's container was created but never started, so it has no log yet."
         return 0
     fi
-    [ -n "$started" ] && args+=(--since "$started")
+    args+=(--since "$started")
     args+=(--tail 500)
     if is_running; then
         echo -e "${DIM}── $APP's log since it started $(when "$started"). ctrl+c stops following ──${NC}"
         compose "${args[@]}" --follow
     else
+        # shellcheck disable=SC2086 # one container ID per word
         echo -e "${DIM}── $APP's last run, from $(when "$started") until it stopped $(when \
-            "$(sudo docker inspect -f '{{.State.FinishedAt}}' "$container" 2> /dev/null)") ──${NC}"
+            "$(sudo docker inspect -f '{{.State.FinishedAt}}' $containers 2> /dev/null | sort | tail -n 1)") ──${NC}"
         compose "${args[@]}"
     fi
 }
@@ -686,8 +729,8 @@ load_local
 case "$ACTION" in
     status)  do_status ;;
     check)   do_check ;;
-    update)  do_update ;;
-    revert)  do_revert ;;
+    update)  make_secrets && do_update ;;
+    revert)  make_secrets && do_revert ;;
     hold)    do_hold ;;
     release) do_release ;;
     data)

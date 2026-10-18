@@ -1,0 +1,135 @@
+services:
+  opennotebook:
+    # Open Notebook's releases. Its development builds go to "v1-dev", so this
+    # tag only moves with a release. One container runs its web page, its API
+    # and the worker that reads sources and makes podcasts.
+    image: lfnovo/open_notebook:v1-latest
+    container_name: opennotebook
+    restart: unless-stopped
+    depends_on:
+      - surrealdb
+    ports:
+      # This PC only by default. The web page passes /api on to the API inside
+      # the container, so this one port is all a browser needs. To let other
+      # devices on your network in, set OPENNOTEBOOK_BIND_ADDRESS and
+      # OPENNOTEBOOK_URL in a local .env file, and a password (see .env.template).
+      - "${OPENNOTEBOOK_BIND_ADDRESS:-127.0.0.1}:${OPENNOTEBOOK_PORT:-8502}:8502"
+    labels:
+      # What manage.sh shows while it runs
+      ai-leverage.url: "${OPENNOTEBOOK_URL:-http://localhost:${OPENNOTEBOOK_PORT:-8502}}"
+      # ...and the address other containers use: its API, by name and its own
+      # port, the same whatever .env says
+      ai-leverage.connect: "http://opennotebook:5055 (its API, for other containers)"
+      # ...and where the menu asks whether it's ready: the web page answers
+      # there only once the API behind it does
+      ai-leverage.ready: "http://${OPENNOTEBOOK_BIND_ADDRESS:-127.0.0.1}:${OPENNOTEBOOK_PORT:-8502}/api/auth/status"
+      # Where the update check finds the version: the image has no label for
+      # it, so read it from Open Notebook's package file, and its GitHub releases
+      ai-leverage.version-command: "grep -m1 '^version' /app/pyproject.toml"
+      ai-leverage.releases: "lfnovo/open-notebook"
+      # What Update offers to back up first (to backups/), since a new version
+      # may convert it. The add-ons' downloads (.cache, several GB once Docling
+      # is on) come back by themselves, so backups leave them out.
+      ai-leverage.data: "your notebooks, sources, notes and podcasts"
+      ai-leverage.data-skip: "data/notebook/.cache"
+      # Random values Start creates in .env when they're missing, since every
+      # install needs its own (src/bash/service.sh)
+      ai-leverage.secrets: "OPEN_NOTEBOOK_ENCRYPTION_KEY SURREAL_PASSWORD"
+    volumes:
+      # Uploaded files, podcasts and the add-ons' downloads
+      - ./data/notebook:/app/data
+    environment:
+      # Encrypts the API keys you add for cloud models, in the database
+      - 'OPEN_NOTEBOOK_ENCRYPTION_KEY=${OPEN_NOTEBOOK_ENCRYPTION_KEY:?missing - Start creates it: in the menu, opennotebook → Start, or src/bash/service.sh stack/services/opennotebook start}'
+      # The database, over Open Notebook's own network
+      - 'SURREAL_URL=ws://surrealdb:8000/rpc'
+      - 'SURREAL_USER=${SURREAL_USER:-root}'
+      - 'SURREAL_PASSWORD=${SURREAL_PASSWORD:?missing - Start creates it: in the menu, opennotebook → Start, or src/bash/service.sh stack/services/opennotebook start}'
+      - 'SURREAL_NAMESPACE=open_notebook'
+      - 'SURREAL_DATABASE=open_notebook'
+      # The browser reaches the API through the web page's own address...
+      - 'API_URL=${OPENNOTEBOOK_URL:-http://localhost:${OPENNOTEBOOK_PORT:-8502}}'
+      # ...and only pages at Open Notebook's own address may use the API.
+      # Without this, any website open in your browser could read your
+      # notebooks through localhost, since there's no login without a password.
+      - 'CORS_ORIGINS=${OPENNOTEBOOK_URL:-http://localhost:${OPENNOTEBOOK_PORT:-8502}},http://localhost:${OPENNOTEBOOK_PORT:-8502},http://127.0.0.1:${OPENNOTEBOOK_PORT:-8502}'
+      # One source or podcast at a time, so a local engine gets one request
+      # after another instead of several at once (Open Notebook's default is 5)
+      - 'OPEN_NOTEBOOK_WORKER_MAX_TASKS=${OPEN_NOTEBOOK_WORKER_MAX_TASKS:-1}'
+    # --- Privacy ---
+    # Open Notebook asks GitHub for its newest version each time its page
+    # opens (at most once a day). That's the only thing it reads there, so
+    # the address points back at the container itself, where nothing answers.
+    # manage.sh -> Update gets new versions anyway.
+    extra_hosts:
+      - "raw.githubusercontent.com:127.0.0.1"
+    # Optional settings for this machine. See .env.template.
+    env_file:
+      - path: .env
+        required: false
+    networks:
+      - default
+      - ai-leverage
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  setup:
+    # Runs once, right after Open Notebook's very first start: points it at
+    # the stack's engines, picks the default models, and has it read web pages
+    # itself instead of through Jina's cloud reader. Then it leaves a mark in
+    # data/notebook, and later starts end at once. See first-start.py.
+    image: lfnovo/open_notebook:v1-latest
+    container_name: opennotebook-setup
+    restart: "no"
+    depends_on:
+      - opennotebook
+    entrypoint: ["python", "-I", "/opt/ai-leverage/first-start.py"]
+    volumes:
+      - ./data/notebook:/app/data
+      - ./first-start.py:/opt/ai-leverage/first-start.py:ro
+    environment:
+      - 'OPEN_NOTEBOOK_PASSWORD=${OPEN_NOTEBOOK_PASSWORD:-}'
+      - 'CHAT_MODEL=${OPENNOTEBOOK_CHAT_MODEL:-agent/qwen3.6:35b}'
+      - 'EMBEDDING_MODEL=${OPENNOTEBOOK_EMBEDDING_MODEL:-rag/qwen3-embedding:8b}'
+      - 'OLLAMA_CONTEXT=${OPENNOTEBOOK_OLLAMA_CONTEXT:-32768}'
+    logging:
+      driver: json-file
+      options:
+        max-size: "1m"
+        max-file: "1"
+
+  surrealdb:
+    # Open Notebook's database. It names version 2 of SurrealDB, so this stays
+    # on 2.x while Update follows its fixes.
+    image: surrealdb/surrealdb:v2
+    container_name: opennotebook-surrealdb
+    restart: unless-stopped
+    # The image's own user can't write to a folder on this PC, so it runs as
+    # root inside its container, as Open Notebook's own setup does. It has no
+    # port on this PC and no internet; only Open Notebook reaches it.
+    user: root
+    # The list form keeps a password with spaces in one piece
+    command: ["start", "--log", "info", "--user", "${SURREAL_USER:-root}", "--pass", "${SURREAL_PASSWORD:?missing - Start creates it}", "rocksdb:/mydata/mydatabase.db"]
+    volumes:
+      # Your notebooks, sources, notes and chats
+      - ./data/surrealdb:/mydata
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  # Open Notebook's own network, for it and its database. Internal: nothing on
+  # it reaches the internet, and no other container of the stack reaches the
+  # database.
+  default:
+    internal: true
+  # Shared "ai-leverage" network: Open Notebook reaches the engines by name,
+  # such as http://ollama:11434. Created by src/bash/docker-create-network.sh.
+  ai-leverage:
+    name: ai-leverage
+    external: true

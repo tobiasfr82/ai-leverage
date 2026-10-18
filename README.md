@@ -4,10 +4,11 @@ A bash & Python-native framework for running large language models locally with 
 
 ## Overview
 AI-Leverage runs a private AI stack on your own PC: a chat interface, four engines that
-run the models, a document reader and an AI agent, all in Docker and all talking to each
-other out of the box. One menu (`manage.sh`) starts, stops and updates everything, and plain text lists
-decide which models get downloaded. The same menu installs and updates the desktop apps that go
-with it: Obsidian, VS Code, Claude Code, Claude Desktop and OpenCode.
+run the models, a document reader, an AI agent and a research notebook, all in Docker and
+all talking to each other out of the box. One menu (`manage.sh`) starts, stops and updates
+everything, and plain text lists decide which models get downloaded. The same menu installs
+and updates the desktop apps that go with it: Obsidian, VS Code, Claude Code, Claude Desktop
+and OpenCode.
 
 ## 🚀 Quick start
 ```bash
@@ -179,6 +180,10 @@ of your files Hermes can change.
   files in one folder of yours, such as an Obsidian vault. Chat with it in the terminal
   (**hermes → Chat**) or as `hermes-agent` in Open WebUI. See
   [stack/services/hermes/README.md](stack/services/hermes/README.md) for what it can reach.
+- **Open Notebook** is a research notebook, like Google's NotebookLM: chat with the PDFs, web
+  pages and videos you put in a notebook, write notes, or turn them into a podcast, at
+  `http://localhost:8502`. Its first start connects it to the engines. See
+  [stack/services/opennotebook/README.md](stack/services/opennotebook/README.md).
 - Models live in the shared `models/` folder at the top of the repo, never inside a
   container, so updating or rebuilding a service never re-downloads them. The downloaders
   fill it, and the engines read from it.
@@ -277,7 +282,7 @@ TOOLS  updated another way
 
 ## 💻 Hardware
 - **Linux with an NVIDIA GPU.** Ollama, vLLM, SGLang, llama.cpp and Docling run on the
-  GPU. Open WebUI does not need one.
+  GPU. Open WebUI and Open Notebook don't need one.
 - **The services size themselves to your GPU.** Ollama picks its context size (how much
   text a model can keep in mind) from the VRAM: 32k tokens on a 32 GB card, enough for
   chats and documents. vLLM and SGLang fit as much context as the memory they are given
@@ -345,18 +350,20 @@ TOOLS  updated another way
 ## 🔌 Networking
 All engines and services in `stack/` join one private Docker network, `ai-leverage`.
 Containers reach each other by name over it, and by default nothing is reachable from
-outside this PC.
+outside this PC. A service's own database stays off it: Open Notebook's sits on a network of
+its own, without internet, that only Open Notebook joins.
 `bootstrap.sh` creates the network, and `manage.sh` creates it if it is missing.
 
-| Service    | From other containers     | From this PC                                   |
-| ---------- | ------------------------- | ---------------------------------------------- |
-| Open WebUI | `http://openwebui:8080`   | `http://localhost:3000`                        |
-| Ollama     | `http://ollama:11434`     | `http://localhost:11434`                       |
-| vLLM       | `http://vllm:8000/v1`     | `http://localhost:8000/v1`                     |
-| SGLang     | `http://sglang:30000/v1`  | `http://localhost:30000/v1`                    |
-| llama.cpp  | `http://llamacpp:8080/v1` | `http://localhost:8080` (chat page; API `/v1`) |
-| Docling    | `http://docling:5001`     | `http://localhost:5001` (web UI at `/ui`)      |
-| Hermes     | `http://hermes:8642/v1`   | `http://localhost:8642/v1` (needs its key)     |
+| Service       | From other containers            | From this PC                                   |
+| ------------- | -------------------------------- | ---------------------------------------------- |
+| Open WebUI    | `http://openwebui:8080`          | `http://localhost:3000`                        |
+| Ollama        | `http://ollama:11434`            | `http://localhost:11434`                       |
+| vLLM          | `http://vllm:8000/v1`            | `http://localhost:8000/v1`                     |
+| SGLang        | `http://sglang:30000/v1`         | `http://localhost:30000/v1`                    |
+| llama.cpp     | `http://llamacpp:8080/v1`        | `http://localhost:8080` (chat page; API `/v1`) |
+| Docling       | `http://docling:5001`            | `http://localhost:5001` (web UI at `/ui`)      |
+| Hermes        | `http://hermes:8642/v1`          | `http://localhost:8642/v1` (needs its key)     |
+| Open Notebook | `http://opennotebook:5055` (API) | `http://localhost:8502`                        |
 
 - **Every port is published on `127.0.0.1` (this PC only).** Docker's published ports bypass
   host firewalls such as `ufw`, so this binding is what keeps them private.
@@ -364,9 +371,11 @@ outside this PC.
   Containers keep using the addresses in the middle column, so nothing else changes.
 - **Only services with their own login can be opened to your network.** For Open WebUI, see
   [Opening it to your home network](stack/services/openwebui/README.md#opening-it-to-your-home-network):
-  a quick check of the account settings, then one setting in a local `.env`. Ollama, vLLM,
-  SGLang, llama.cpp and Docling have no login, so they stay on this PC. So does Hermes,
-  because it can change your files.
+  a quick check of the account settings, then one setting in a local `.env`. Open Notebook
+  gets a password first; see
+  [its README](stack/services/opennotebook/README.md#opening-it-to-your-home-network).
+  Ollama, vLLM, SGLang, llama.cpp and Docling have no login, so they stay on this PC. So
+  does Hermes, because it can change your files.
 - **Personal settings stay out of git.** IP addresses, domains and tokens belong in a `.env`
   file next to the service's `compose.yaml`; `.env` files are git-ignored.
 - **After changing a `compose.yaml` or `.env`, use Start** in `manage.sh` (or
@@ -391,6 +400,8 @@ Some of the programs would also send things on their own. The stack turns that o
 | Ollama                  | A signed request to ollama.com at every start and every 4 hours                     | `OLLAMA_NO_CLOUD`                     |
 | Open WebUI              | A check on GitHub for a newer version each time it's opened                         | `ENABLE_VERSION_UPDATE_CHECK`         |
 | Hugging Face downloader | A daily check on pypi.org for a newer `hf`                                          | `HF_HUB_DISABLE_UPDATE_CHECK`         |
+| Open Notebook           | Each web page you add, to Jina's cloud reader, which fetches it                     | its first start (URL engine: Simple)  |
+| Open Notebook           | A check on GitHub for a newer version when its page opens, once a day               | `extra_hosts` in its `compose.yaml`   |
 
 - **`OLLAMA_NO_CLOUD` also turns off Ollama's cloud models and web search.** To use them,
   set `OLLAMA_NO_CLOUD=0` in `stack/engines/ollama/.env`.
@@ -405,8 +416,8 @@ Some of the programs would also send things on their own. The stack turns that o
   ai-leverage moves Textual's version.
 - **The model fit (Models › Tuning › Fit) works offline.** It reads this PC's hardware and
   the headers of the downloaded files, and keeps what it read in `cache/`.
-- **What you add can go online.** Examples: a key for a cloud model in Open WebUI or
-  Hermes, or web search.
+- **What you add can go online.** Examples: a key for a cloud model in Open WebUI, Hermes or
+  Open Notebook, web search, or the web pages and videos you add to a notebook.
 - **The apps in `apps/` are ordinary desktop programs.** Install and Update go online to
   their makers' sources. **Claude Code and Claude Desktop work online by design:** what you
   ask them, and the files they read, go to Anthropic. VS Code sends usage data to Microsoft

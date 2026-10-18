@@ -5,7 +5,7 @@ answers at `http://localhost:11434`; other containers use `http://ollama:11434`.
 
 It runs the models in the shared `models/ollama` folder at the top of the repo. To add or
 remove models, edit the list in [stack/downloaders/ollama](../../downloaders/ollama) and run
-**Models › Downloaders › ollama → sync_models**. That works whether this engine runs or not,
+**Models › Downloaders › Ollama → Sync models**. That works whether this engine runs or not,
 and a running engine picks up each new model straight away.
 
 ## Settings

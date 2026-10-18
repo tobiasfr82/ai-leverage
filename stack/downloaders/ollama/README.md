@@ -1,12 +1,11 @@
 # Ollama models
 
-Downloads the models the Ollama engine runs into the shared `models/ollama` folder at the
-top of the repo, and builds the custom models in `specs/`. The engine itself is in
-[stack/engines/ollama](../../engines/ollama).
+Downloads the Ollama engine's models into the shared `models/ollama` folder and builds the
+custom ones in `specs/`. The engine itself is in [stack/engines/ollama](../../engines/ollama).
 
 ## How it downloads
 
-Ollama can only download its models through Ollama itself. So **Models › Downloaders › ollama → sync_models** starts a temporary Ollama of its own, just for downloading:
+Ollama can only download its models through Ollama itself. So **Models › Downloaders › Ollama → Sync models** starts a temporary Ollama of its own, just for downloading:
 
 - **It gets no GPU and no open port,** so it never takes memory from an engine that runs,
   for example vLLM while Hermes works with it.
@@ -17,6 +16,13 @@ Ollama can only download its models through Ollama itself. So **Models › Downl
 Ollama checks every file it downloads (`verifying sha256 digest` in the output) and then
 records the finished model (`writing manifest`). The temporary Ollama does all of that
 itself, so nothing is left for the engine to do.
+
+Sync models runs as a notification in the menu, with its progress there. A model that's
+downloaded but no longer in `models.txt`: before downloading anything, the sync asks
+whether to delete it. Its notification turns blue and waits; open it (a click, or Enter)
+and answer under its log. Run in a terminal (`./sync_models.sh`), it asks there.
+**Models › Downloaders › Ollama → Remove unlisted models** asks the same and downloads
+nothing. Where nobody can answer, the sync keeps such models and names them at the end.
 
 ## Two kinds of models
 
@@ -35,10 +41,11 @@ qwen3-embedding:8b ──────► rag/qwen3-embedding:8b   8k context, Op
 - **A spec model takes no extra disk space.** It reuses its base model's files and only adds
   settings: context size, temperature, a system prompt.
 - **It cannot be downloaded,** because it only exists as a recipe in `specs/`.
-  **Models › Downloaders › ollama → sync_models** builds every spec after the downloads, and
+  **Models › Downloaders › Ollama → Sync models** builds every spec after the downloads, and
   fetches a spec's base model even if `models.txt` doesn't list it.
-- **Don't list spec models in `models.txt`.** `sync_models` knows them from `specs/` and
-  never offers to delete them or the models they are built on.
+- **Don't list spec models in `models.txt`.** Sync models knows them from `specs/`, and
+  neither it nor Remove unlisted models ever offers to delete them or the models they are
+  built on.
 
 ### Naming
 

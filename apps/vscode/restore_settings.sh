@@ -1,8 +1,10 @@
 #!/bin/bash
 # ai-leverage/apps/vscode/restore_settings.sh
-# Puts back a backup made by backup_settings.sh: the settings in
-# ~/.config/Code/User and the extensions it lists. The settings there now are
-# moved aside first, not deleted. Close VS Code before running this.
+# Puts back a backup made by backup_settings.sh; the settings there now are
+# moved aside, not deleted. Close VS Code first.
+#
+# It restores the settings in ~/.config/Code/User and installs the extensions
+# the backup lists.
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="$APP_DIR/data/backups"
@@ -19,7 +21,7 @@ if [ ${#backups[@]} -eq 0 ]; then
     exit 1
 fi
 if pgrep -x code > /dev/null; then
-    echo -e "${RED}✗ VS Code is running. Close it, then run this from a terminal outside VS Code.${NC}"
+    echo -e "${RED}× VS Code is running. Close it, then run this from a terminal outside VS Code.${NC}"
     exit 1
 fi
 
@@ -42,7 +44,7 @@ if [ -d "$CODE_DIR/User" ]; then
 fi
 mkdir -p "$CODE_DIR"
 if ! tar -xzf "$file" -C "$CODE_DIR" User; then
-    echo -e "${RED}✗ Couldn't unpack $(basename "$file").${NC}"
+    echo -e "${RED}× Couldn't unpack $(basename "$file").${NC}"
     [ -n "$aside" ] && rm -rf "$CODE_DIR/User" && mv "$aside" "$CODE_DIR/User" && echo "Your settings are back as they were."
     exit 1
 fi
@@ -63,5 +65,5 @@ if tar -xzf "$file" -C "$tmp" extensions.txt 2> /dev/null; then
     fi
 fi
 
-echo -e "${GREEN}✓ Done.${NC}"
+echo -e "${GREEN}√ Done.${NC}"
 [ -n "$aside" ] && echo "The settings you had before are in ~/.config/Code/$(basename "$aside")."

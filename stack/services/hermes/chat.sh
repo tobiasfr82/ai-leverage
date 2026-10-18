@@ -6,7 +6,7 @@
 #   ./chat.sh profile list    show the profiles
 
 if ! sudo docker ps --format '{{.Names}}' | grep -qx hermes; then
-  echo "Hermes is not running. Start it first: manage.sh -> hermes -> Start."
+  echo "Hermes is not running. Start it first: in the menu, hermes → Start."
   exit 1
 fi
 

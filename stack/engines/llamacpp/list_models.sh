@@ -1,14 +1,15 @@
 #!/bin/bash
 # ai-leverage/stack/engines/llamacpp/list_models.sh
-# Lists the models llama.cpp can run: the GGUF downloads in the shared
-# models/huggingface folder, under the names Open WebUI shows for them. Also
-# lists the GGUF lines in the downloader's models.txt that aren't downloaded
-# yet, because llama.cpp never goes online to fetch them.
-# Under each model: how it fits on this PC with the context llama.cpp is set
-# to, estimated by src/python/model_fit.py (f in manage.sh's main menu
-# compares all engines).
-# What's downloaded comes from src/python/model_facts.py, which names the
-# files by the same rules as the downloader and llama.cpp (gguf_names.py).
+# Lists the GGUF models llama.cpp can run, under the names Open WebUI shows
+# for them, and how each fits this PC.
+#
+# The downloads come from the shared models/huggingface folder. It also lists
+# the GGUF lines in the downloader's models.txt that aren't downloaded yet,
+# because llama.cpp never goes online to fetch them. How each fits, with the
+# context llama.cpp is set to, is estimated by src/python/model_fit.py
+# (Models › Tuning › Fit in the menu compares all engines). What's downloaded
+# comes from src/python/model_facts.py, which names the files by the same
+# rules as the downloader and llama.cpp (gguf_names.py).
 #
 # menu: console   (manage.sh's menu shows what it prints without leaving the menu: it never asks anything)
 
@@ -55,7 +56,7 @@ done <<< "$found"
 if [ ${#lines[@]} -eq 0 ]; then
     echo "No GGUF models downloaded yet. Add one to"
     echo "stack/downloaders/huggingface/models.txt as organization/model:size, e.g."
-    echo "unsloth/gpt-oss-120b-GGUF:Q4_K_M, and run huggingface -> sync_models."
+    echo "unsloth/gpt-oss-120b-GGUF:Q4_K_M, and run Models › Downloaders › Huggingface → Sync models."
 else
     echo "Pick one of these in Open WebUI, or on llama.cpp's own chat page at"
     echo "http://localhost:${PORT:-8080}:"
@@ -73,9 +74,9 @@ if [ ${#not_downloaded[@]} -gt 0 ]; then
     for model in "${not_downloaded[@]}"; do
         echo -e "\033[1;33mNot downloaded yet:\033[0m $model"
     done
-    echo "llama.cpp only runs what is downloaded: run manage.sh -> huggingface ->"
-    echo "sync_models."
+    echo "llama.cpp only runs what is downloaded: run Models › Downloaders ›"
+    echo "Huggingface → Sync models in the menu."
     echo "------------------------------------------"
 fi
 echo "llama.cpp reads this list when it starts. After a download, Restart it"
-echo "(manage.sh -> llamacpp -> Restart) so Open WebUI shows the new models."
+echo "(in the menu: llamacpp → Restart) so Open WebUI shows the new models."

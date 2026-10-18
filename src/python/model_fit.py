@@ -16,7 +16,7 @@ really got.
 
 What it plans for is the goal: how much context you need, whether the PC's
 memory may help, and how many conversations run at once. fit_screen.py
-(manage.sh -> f) sets it, and it's kept in config/model-fit.conf.
+(Models › Tuning › Fit in the menu) sets it, and it's kept in config/model-fit.conf.
 
 What each engine is set to comes from its folder, the most specific first:
 an option in its *_EXTRA_ARGS, then its .env, then the default its
@@ -658,7 +658,7 @@ class Plan:
         if self.model.max_context and max(self.reach) >= self.model.max_context:
             text += " (its max)"
         if goal_context and max(self.reach) < goal_context:
-            text += f"  ⚠ under your {tokens_text(goal_context)}"
+            text += f"  ! under your {tokens_text(goal_context)}"
         return text
 
 

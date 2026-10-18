@@ -25,6 +25,9 @@ SCRIPT_DIR="$BASE_DIR/src/bash"
 # Colors, ask, newer, github_latest and where the results are kept
 # shellcheck source=update-common.sh
 . "$SCRIPT_DIR/update-common.sh"
+# read_choice: a choice typed and ended with Enter, or Esc to go back
+# shellcheck source=read-choice.sh
+. "$SCRIPT_DIR/read-choice.sh"
 BOLD='\033[1m'
 
 # Room for the longest status, [NOT INSTALLED], as in manage.sh
@@ -373,7 +376,7 @@ draw() {
     fi
     echo -e "1-${#ROW_PATH[@]}) Update, Revert or Hold one of them"
     echo -e "c) ${CYAN}Check again${NC}"
-    echo -e "b) Back"
+    echo -e "Esc) Go back"
     echo -e "------------------------------------------------------------------------------"
 }
 
@@ -382,7 +385,7 @@ draw() {
 tool_of() { [ "${ROW_KIND[$1]}" == app ] && echo "$SCRIPT_DIR/app.sh" || echo "$SCRIPT_DIR/service.sh"; }
 
 # Update, Revert or Hold one row, with the same entries as in its own menu.
-# Only b goes back; any other key draws it again.
+# Only Esc goes back; anything else draws it again.
 row_menu() {
     local i=$1 name state version held previous label choice action
     name=$(basename "${ROW_PATH[$i]}")
@@ -408,11 +411,11 @@ row_menu() {
             echo -e "3) ${BOLD}Hold${NC} $label at ${version:-its version}, so Update skips it"
         fi
         echo -e "--------------------------------------------"
-        echo -e "b) Go back"
+        echo -e "Esc) Go back"
         echo -e "--------------------------------------------"
-        read -r -p "Selection: " choice
+        read_choice "Selection: " || return
+        choice=$REPLY
         case "$choice" in
-            [Bb]) return ;;
             1) action=update ;;
             2) action=revert ;;
             3) if [ -n "$held" ]; then action=release; else action=hold; fi ;;
@@ -480,8 +483,8 @@ after a Revert. The backups (in backups/) let Revert put it back.${NC}"
     trap - INT
 
     echo -e "\n${BOLD}── Done ──${NC}"
-    [ ${#ok[@]} -gt 0 ] && echo -e "${GREEN}✓ Updated: ${ok[*]}${NC}"
-    [ ${#failed[@]} -gt 0 ] && echo -e "${RED}✗ Failed: ${failed[*]} (see the messages above)${NC}"
+    [ ${#ok[@]} -gt 0 ] && echo -e "${GREEN}√ Updated: ${ok[*]}${NC}"
+    [ ${#failed[@]} -gt 0 ] && echo -e "${RED}× Failed: ${failed[*]} (see the messages above)${NC}"
     pause
     check_rows "${todo[@]}"
 }
@@ -502,9 +505,9 @@ check_all
 while true; do
     load_states
     draw
-    read -r -p "Selection: " choice
+    read_choice "Selection: " || exit 0
+    choice=$REPLY
     case "$choice" in
-        [Bb]) exit 0 ;;
         [Aa]) update_all ;;
         [Cc]) check_all ;;
         *)

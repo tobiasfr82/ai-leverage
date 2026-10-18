@@ -1,7 +1,8 @@
 # ai-leverage/config/menu.conf.template
 # How manage.sh's menu looks. Your own choice goes in menu.conf next to this
 # file, which git ignores. The menu writes it when you pick a theme
-# (ctrl+p, then Theme), or edit it by hand:
+# (AI Leverage › Theme) or how many notifications to keep (AI Leverage ›
+# Notifications), or edit it by hand:
 #   cp menu.conf.template menu.conf
 
 # The colours: one of Textual's themes. tokyo-night (default), textual-dark,
@@ -10,3 +11,8 @@
 # catppuccin-latte, solarized-light. ansi-dark and ansi-light use your
 # terminal's own colours.
 #MENU_THEME=tokyo-night
+
+# How many notifications the column at the menu's right keeps (from 160
+# columns wide): a card for each Start, Stop, Update and the like. With one
+# more, the oldest finished one closes. AI Leverage › Notifications sets it.
+#MENU_NOTIFICATIONS=10

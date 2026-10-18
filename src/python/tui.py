@@ -8,11 +8,11 @@ their own for the live tools, and the theme you picked.
 
 Keys work the same everywhere: in a menu, a box or a pane, typing an
 entry's number or letter does it at once, as in a desktop app's menus, and
-b goes back. The arrows and the mouse only move, and Enter or a click does
+Esc goes back. The arrows and the mouse only move, and Enter or a click does
 the highlighted entry. Whatever can't be undone asks first, in a yes/no box.
 The one exception is the main list, where you look at things: a number
 there only moves the highlight (which shows that entry's log), and Enter
-opens it.
+opens it. A box says its keys in the line at the bottom of the menu (keys()).
 
 Not run on its own: menu.py imports it.
 """
@@ -194,13 +194,22 @@ class JumpList(OptionList):
         if key not in self.keys:
             return False
         if key in self.reasons:
-            self.app.notify(self.reasons[key], timeout=4)
+            self.refuse(self.reasons[key])
             self.refused = True
         else:
             self.highlighted = self.keys[key]
             self.refused = False
             self.parked = False
         return True
+
+    def refuse(self, reason):
+        """Why an entry can't be done now: in the hint line of the box the list
+        is in, where you're looking, or else as a message"""
+        said = getattr(self.screen, "refused", None)
+        if said:
+            said(reason)
+        else:
+            self.app.notify(reason, timeout=4)
 
     def type_key(self, character):
         """A typed number or letter, as a jump. True when it was one of this list's."""
@@ -428,8 +437,8 @@ def first_key(text, style=""):
 class Confirm(ModalScreen):
     """A question in a box over the menu, before something that can't be
     undone, answered "Yes, …" or "No, …". No is highlighted first, as in the
-    (y/N) questions, so Enter alone says no. y says yes at once, n, b, Esc or
-    ← say no, as letters work everywhere in the menu. Dismisses with True for
+    (y/N) questions, so Enter alone says no. y says yes at once; n, Esc or ←
+    say no, as letters work everywhere in the menu. Dismisses with True for
     yes."""
 
     BINDINGS = [Binding("escape", "close", show=False)]
@@ -441,7 +450,7 @@ class Confirm(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog") as box:
             box.border_title = self.title_text
-            box.border_subtitle = "y yes · n, b or Esc no"
+            box.border_subtitle = "y yes · n or Esc no"
             yield Static(self.body, id="question")
             yield MenuList(id="answers")
 
@@ -455,9 +464,11 @@ class Confirm(ModalScreen):
             ("y", said("Yes", self.yes), "yes", ""),
             ("n", said("No", self.no), "no", ""),
         ])
-        answers.keys["b"] = answers.keys["n"]
         answers.highlighted = answers.keys["n"]
         answers.focus()
+
+    def key_hints(self):
+        return [("y", "yes"), ("n or Esc", "no")]
 
     @on(OptionList.OptionSelected, "#answers")
     def answered(self, event):
@@ -470,14 +481,69 @@ class Confirm(ModalScreen):
         pass
 
 
+# --- A choice ---
+
+class Choose(ModalScreen):
+    """A choice in a box over the menu, such as how many notifications to
+    keep: what it's about at the top, the choices under it, the current one
+    marked and highlighted. A choice's number does it at once, as everywhere;
+    Esc or ← close the box without changing anything. Dismisses with the
+    choice's id, or None."""
+
+    BINDINGS = [Binding("escape", "close", show=False)]
+
+    def __init__(self, title, body, choices, current=None):
+        super().__init__()
+        self.title_text, self.body, self.current = title, body, current
+        self.choices = choices  # (key, label, id)
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="choose") as box:
+            box.border_title = self.title_text
+            box.border_subtitle = "its number does it · Esc closes"
+            yield Static(self.body, id="choose-text")
+            yield MenuList(id="choices")
+
+    def on_mount(self):
+        choices = self.query_one("#choices", MenuList)
+        entries = []
+        for key, label, choice_id in self.choices:
+            text = Content.assemble((f"{key:>2}  ", MUTED), (label, "bold" if choice_id == self.current else ""))
+            if choice_id == self.current:
+                text += Content.styled("  ● now", "$success")
+            entries.append((key, text, choice_id, ""))
+        choices.fill(entries)
+        current = next((i for i, (_, _, choice_id) in enumerate(self.choices) if choice_id == self.current), None)
+        choices.highlighted = current if current is not None else choices.first_enabled()
+        choices.focus()
+
+    def key_hints(self):
+        return [("↑↓", "move"), ("its number or Enter", "picks it"), ("Esc", "closes")]
+
+    @on(OptionList.OptionSelected, "#choices")
+    def chosen(self, event):
+        self.dismiss(event.option_id)
+
+    def action_close(self):
+        self.dismiss(None)
+
+    def action_noop(self):
+        pass
+
+    def on_click(self, event):
+        if event.widget is self:
+            self.dismiss(None)
+
+
 # --- A box of facts ---
 
 class InfoBox(ModalScreen):
-    """Facts in a box over the menu, such as About. Enter, b, Esc or a click
+    """Facts in a box over the menu, such as About. Esc, ←, Enter or a click
     anywhere closes it."""
 
+    # ← before the box's own scrolling sideways, which it has no use for
     BINDINGS = [Binding("escape", "close", show=False), Binding("enter", "close", show=False),
-                Binding("b", "close", show=False)]
+                Binding("left", "close", show=False, priority=True)]
 
     def __init__(self, title, body):
         super().__init__()
@@ -486,11 +552,14 @@ class InfoBox(ModalScreen):
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="infobox") as box:
             box.border_title = self.title_text
-            box.border_subtitle = "Enter, b or Esc closes"
+            box.border_subtitle = "Esc closes"
             yield Static(self.body, id="info")
 
     def on_mount(self):
         self.query_one("#infobox").focus()
+
+    def key_hints(self):
+        return [("↑↓", "scroll"), ("Esc", "closes")]
 
     def action_close(self):
         self.dismiss()
@@ -511,11 +580,12 @@ class BackLine(Static):
 
 class Reader(Screen):
     """A folder's README.md, full screen. The arrows, Page Up/Down and the
-    mouse scroll it; b goes back, like everywhere else, and so do Esc and a
+    mouse scroll it; Esc goes back, like everywhere else, and so do ← and a
     click on the line at the bottom. Links to other READMEs open them here,
     web links in the browser."""
 
-    BINDINGS = [Binding("b", "back", show=False), Binding("escape", "back", show=False)]
+    # ← before the page's own scrolling sideways, which it has no use for
+    BINDINGS = [Binding("escape", "back", show=False), Binding("left", "back", show=False, priority=True)]
 
     def __init__(self, path, crumb):
         super().__init__()
@@ -546,7 +616,7 @@ class Reader(Screen):
 
     def show_keys(self):
         self.query_one("#reader-keys", BackLine).update(
-            keys_line(("↑↓ PgUp PgDn", "scroll"), ("b or Esc", "back to the menu"), ("click", "links")))
+            keys_line(("↑↓ PgUp PgDn", "scroll"), ("Esc", "back to the menu"), ("click", "links")))
 
     def action_back(self):
         self.dismiss()
@@ -569,11 +639,20 @@ class Reader(Screen):
                         timeout=5)
 
 
-# --- The theme you picked ---
+# --- The menu's settings: the theme you picked, how many notifications it keeps ---
+
+def setting(key, default):
+    """A setting from config/menu.conf, or its default"""
+    return model_fit.read_settings(CONFIG_FILE).get(key, default)
+
+
+def save_setting(key, value):
+    model_fit.write_settings(CONFIG_FILE, CONFIG_FILE + ".template", {key: value})
+
 
 def saved_theme():
-    return model_fit.read_settings(CONFIG_FILE).get("MENU_THEME", DEFAULT_THEME)
+    return setting("MENU_THEME", DEFAULT_THEME)
 
 
 def save_theme(name):
-    model_fit.write_settings(CONFIG_FILE, CONFIG_FILE + ".template", {"MENU_THEME": name})
+    save_setting("MENU_THEME", name)

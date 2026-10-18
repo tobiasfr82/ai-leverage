@@ -7,7 +7,7 @@ such as an Obsidian vault. You talk to it in the terminal or, as a model called
 `hermes-agent`, in Open WebUI.
 
 ```text
-  you ──► terminal (hermes → chat) ──┐
+  you ──► terminal (hermes → Chat) ──┐
   you ──► Open WebUI, "hermes-agent" ─┴──► Hermes ──► Ollama: agent/qwen3.6:35b
                                              │
                                              ▼
@@ -17,7 +17,7 @@ such as an Obsidian vault. You talk to it in the terminal or, as a model called
 
 ## First start
 
-1. **Get the model.** Run **Models › Downloaders › ollama → sync_models**. It builds
+1. **Get the model.** Run **Models › Downloaders › Ollama → Sync models**. It builds
    `agent/qwen3.6:35b`, which Hermes uses by default (see `first-start-config.yaml`).
 2. **Give Hermes your notes.** Without this, it works in an empty `data/workspace` folder.
 
@@ -30,8 +30,8 @@ such as an Obsidian vault. You talk to it in the terminal or, as a model called
    `HERMES_WORKSPACE=/home/you/notes/second-brain`, and check that `HERMES_UID`/`HERMES_GID`
    match `id -u` and `id -g` (both are 1000 for the first user on most Linux systems).
 3. **Start it:** **hermes → Start**. The first start downloads about 1 GB.
-4. **Chat:** **hermes → chat** opens Hermes in the terminal. Type `/help` for its commands.
-5. **Optional, Open WebUI:** run **hermes → connect_openwebui**. It hands Hermes's key to
+4. **Chat:** **hermes → Chat** opens Hermes in the terminal. Type `/help` for its commands.
+5. **Optional, Open WebUI:** run **hermes → Connect openwebui**. It hands Hermes's key to
    Open WebUI and tells you the one remaining step, if any.
 
 `data/` holds Hermes's own settings, memory, skills and chat history. Hermes creates it on
@@ -121,7 +121,7 @@ Open WebUI then reaches it at `http://hermes:<its port>/v1`.
 - **Replies take a while.** Hermes may read and write several files before it answers. In
   Open WebUI you see each step as it happens.
 - **New key?** If you delete `data/`, Hermes creates a new key on its next start. Run
-  **hermes → connect_openwebui** again, and update the key in Open WebUI.
+  **hermes → Connect openwebui** again, and update the key in Open WebUI.
 - **Update** in the menu downloads the newest release, and **Revert** goes back one.
   Hermes's own `hermes update` does not work in a container. Revert brings back the
   program, not `data/`: copy `data/` first if an update worries you.

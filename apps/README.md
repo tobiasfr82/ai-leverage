@@ -14,8 +14,8 @@ the same actions, whatever it's installed with:
 
 The menu shows each app's state: **● INSTALLED**, **● HELD** (installed, and Update skips
 it), **◐ OTHER INSTALL** (installed some other way, and where) or **○ NOT INSTALLED**.
-Update, Revert and Hold show what they do in the app's pane under the log; Install and
-Uninstall run in the plain terminal, because they can ask more.
+Update, Revert and Hold each get a notification in the menu, whose log shows what they do;
+Install and Uninstall run in the plain terminal, because they can ask more.
 
 - **Stable releases only.** Where a maker offers a stable and a faster channel, the app
   follows stable: Claude Code's stable apt channel, VS Code without Insiders, Obsidian's
@@ -54,8 +54,8 @@ Uninstall run in the plain terminal, because they can ask more.
 - **VS Code** can't install its own updates on Linux; it only offers to download them.
   Installed from Microsoft's repository, it's updated here (or by `sudo apt upgrade`). To
   stop the offer, set **Update: Mode** to `none` in VS Code's settings. Its menu has two
-  more entries: **backup_settings** saves `~/.config/Code/User` and the list of extensions
-  into `apps/vscode/data/backups/`, and **restore_settings** puts a backup back. Close VS
+  more entries: **Backup settings** saves `~/.config/Code/User` and the list of extensions
+  into `apps/vscode/data/backups/`, and **Restore settings** puts a backup back. Close VS
   Code before restoring.
 - **Claude Code** from Anthropic's own installer (`claude.ai/install.sh`) lives in
   `~/.local/bin` and updates itself. The menu shows that copy as OTHER INSTALL, and

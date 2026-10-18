@@ -9,12 +9,12 @@ information (they're updated another way).
 It shows what the last check found at once, and checks online again as it
 opens, with src/bash/check-updates.sh --print, which looks without
 downloading anything. Each row changes as its answer comes in. Nothing goes
-online on its own: only opening the box and c Enter check.
+online on its own: only opening the box and c check.
 
 Enter on a row shows what you can do about it: Update, Revert, Hold or
 Release it. Update all updates every one with an update, one after another.
-Each runs in its entry's pane under the log, as Start does, and the box
-closes so you see it there. The menu asks first, in a dialog of its own, and
+Each gets its notification, as Start does, and the box closes so you see
+them there. The menu asks first, in a dialog of its own, and
 then runs service.sh or app.sh with --yes (menu.py). Not run on its own:
 menu.py uses it.
 """
@@ -198,8 +198,8 @@ def newest_of(found):
 class UpdatesMenu(ModalScreen):
     """The update overview, in a box over the menu. A row's number (or Enter
     on it) shows its Update, Revert and Hold; a updates all, after a
-    question, c checks again, and Esc, b, ← or a click beside the box
-    closes it: keys do their entry at once, as everywhere in the menu."""
+    question, c checks again, and Esc, ← or a click beside the box closes
+    it: keys do their entry at once, as everywhere in the menu."""
 
     BINDINGS = [Binding("escape", "close", show=False)]
 
@@ -212,7 +212,7 @@ class UpdatesMenu(ModalScreen):
     def on_mount(self):
         box = self.query_one("#updates")
         box.border_title = "Updates"
-        box.border_subtitle = "a row's number: Update, Revert or Hold it · Esc or b closes"
+        box.border_subtitle = "a row's number: Update, Revert or Hold it · Esc closes"
         self.fill()
         rows = self.query_one("#updates-list", MenuList)
         # On the first one with an update, else the first one
@@ -274,7 +274,6 @@ class UpdatesMenu(ModalScreen):
         entries.append(("c", self.action_line("c", "Check again", "looks online; nothing is downloaded", "$primary",
                                               "It's checking now." if checking else ""), "check",
                         "It's checking now." if checking else ""))
-        entries.append(("b", self.action_line("b", "Go back", "Esc", MUTED, ""), "back", ""))
         rows.fill(entries)
         self.show_head()
         self.show_hint()
@@ -331,7 +330,7 @@ class UpdatesMenu(ModalScreen):
             total = sum(len(items) for _, items in self.items())
             lines.append(Content.styled(f"Looking online… {len(check.rows)} of {total} answered", "$warning"))
         elif check and check.failed and not check.rows:
-            lines.append(Content.styled("The check couldn't run. c Enter tries again; src/bash/check-updates.sh in a "
+            lines.append(Content.styled("The check couldn't run. c tries again; src/bash/check-updates.sh in a "
                                         "terminal shows why.", "$error"))
         else:
             last = stack.last_check()
@@ -340,7 +339,7 @@ class UpdatesMenu(ModalScreen):
             elif last:
                 when = f"Checked online {stack.age_text(last[0])}"
             else:
-                when = "Not checked online yet: c Enter checks"
+                when = "Not checked online yet: c checks"
             count = len(menu.updates_to_do())
             lines.append(Content.assemble((when, ""), (f" · {count} update{'s' if count != 1 else ''}"
                                                        if count else " · nothing to update", MUTED)))
@@ -349,6 +348,12 @@ class UpdatesMenu(ModalScreen):
     def show_hint(self):
         rows = self.query_one("#updates-list", MenuList)
         option = rows.highlighted_option
+        # Why a key was refused stays until the highlight moves, through the redraws as answers come in
+        refusal = getattr(self, "refusal", None)
+        if refusal and option and refusal[1] == option.id:
+            self.query_one("#updates-hint", Static).update(Content.styled(refusal[0], "$warning"))
+            return
+        self.refusal = None
         text = self.hint_for(option.id) if option else ""
         self.query_one("#updates-hint", Static).update(Content.styled(text, MUTED))
 
@@ -357,12 +362,10 @@ class UpdatesMenu(ModalScreen):
         if option_id == "all":
             todo = menu.updates_to_do()
             names = listed(item.name for item in todo) or "nothing"
-            return (f"Updates {names}, one after another, each in its own pane under the log. Held ones stay "
+            return (f"Updates {names}, one after another, each with its notification. Held ones stay "
                     "as they are. It asks first.")
         if option_id == "check":
             return "Looks online for the newest stable release of each one, without downloading anything."
-        if option_id == "back":
-            return "Closes this box. Esc does the same."
         item = menu.item_for(f"item-{option_id[4:]}") if option_id and option_id.startswith("row-") else None
         if not item:
             return ""
@@ -395,9 +398,7 @@ class UpdatesMenu(ModalScreen):
     def chosen(self, event):
         menu = self.app
         option_id = event.option_id
-        if option_id == "back":
-            self.dismiss()
-        elif option_id == "check":
+        if option_id == "check":
             menu.check_updates()
         elif option_id == "all":
             menu.update_all(began=self.began)
@@ -407,12 +408,22 @@ class UpdatesMenu(ModalScreen):
                 menu.open_actions(item, only=UPDATE_ACTIONS, began=self.began)
 
     def began(self, item=None):
-        """Something chosen here runs now: the box closes, and the list
-        shows its entry, so its pane shows how it goes"""
+        """Something chosen here runs now: the box closes, so its notification
+        shows how it goes, and the list shows its entry"""
         if self.app.screen is self:
             self.dismiss()
         if item:
             self.app.show_entry(item)
+
+    def refused(self, reason):
+        """The key of a row or an action that can't be done now: why, where the hint is"""
+        option = self.query_one("#updates-list", MenuList).highlighted_option
+        self.refusal = (reason, option.id if option else None)
+        self.show_hint()
+
+    def key_hints(self):
+        return [("↑↓", "move"), ("Enter or a row's number", "Update, Revert or Hold it"), ("a", "update all"),
+                ("c", "check again"), ("Esc", "closes")]
 
     def action_close(self):
         self.dismiss()

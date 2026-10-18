@@ -17,15 +17,16 @@ with it: Obsidian, VS Code, Claude Code, Claude Desktop and OpenCode.
 
 The menu lists everything on the left, in the order you need it: **engines** run the
 models, **services** are what you use, and the **apps** come last. Getting models onto
-this PC is in the **Models** menu, since you don't download every day. The right side is about the entry you highlight: its log at the top, and what was done
-to it below that. The menu bar at the very top holds what isn't about one entry:
+this PC is in the **Models** menu, since you don't download every day. Next to the list is
+the log of the entry you highlight, and next to that the notifications: one card for each
+thing you start. The menu bar at the very top holds what isn't about one entry:
 
 | Menu            | What's in it                                                        |
 | --------------- | ------------------------------------------------------------------- |
-| **AI Leverage** | About (version, folder, source), Theme, Quit                        |
-| **Stack**       | Updates, Refresh, Stop all                                          |
+| **AI Leverage** | About (version, folder, source), Theme, Notifications, Quit         |
+| **Stack**       | Updates, Refresh status, Stop all engines and services              |
 | **Models**      | Downloaders ▸ (one per folder in `stack/downloaders`), Tuning ▸ Fit |
-| **System**      | Monitor, Ports                                                      |
+| **System**      | Monitor, Container ports                                            |
 | **Help**        | Keys and mouse, Find any action, the README                         |
 
 Its right end says how many updates the last check found; a click on that opens them.
@@ -39,43 +40,59 @@ Its right end says how many updates the last check found; a click on that opens 
 - **One key standard everywhere:** in a box or a menu, an entry's number or underlined
   letter does it at once, as in a desktop app: `4` Enter `1` starts the fourth entry, Alt+S
   `u` opens Updates. The arrows and the mouse only move, and Enter or a click does the
-  highlighted entry. `b` goes back, and so does Esc. Only the list itself is different: a
-  number there only moves, since that's how you look at an entry's log.
+  highlighted entry. Esc goes back. Only the list itself is different: a number there only
+  moves, since that's how you look at an entry's log. The line at the bottom always says the
+  keys of what you're in.
 - **Whatever can't be undone asks first,** in a yes/no box: Stop or Restart of something
   that runs, Stop all, Rebuild, Update, Revert, Update all, and ctrl+c on an update that
-  runs. `y` says yes; `n`, `b` or Esc say no, and No is what's highlighted.
-- **What you start shows in the pane under the log,** with the command it ran and how it
-  ended, while the menu stays usable, and so do Update, Revert and Hold, and the folders'
-  scripts that only print, such as **sync_models**. What Update or Revert would ask, the
-  menu asks first in a box of its own. Several entries can have something running at once:
-  the list says which, and each entry's pane shows its own. Until an engine answers, the
-  list says **◐ LOADING** and how long it's been, not ● UP: vLLM and SGLang take minutes to
-  load a model.
-- **Each pane works like a window.** At the right end of its frame, **save** writes it to a
-  text file in `logs/`, and **▢** gives it the whole area for a long log; a double click on
-  its frame does that too, and Esc or **❐** puts it back; `m` and `s` do the same from the
-  keys. → goes from the list to the log, and `b` back. ctrl+c stops what runs, or stops
-  following a log.
+  runs. `y` says yes; `n` or Esc say no, and No is what's highlighted.
+- **Each thing you start gets a notification card,** in the column right of the log, the
+  newest at the top: Start, Stop, Update, Revert, Hold, and the folders' scripts that only
+  print, such as **Sync models**. In a terminal narrower than 160 columns, the notifications
+  run along the bottom instead, the full width, the cards side by side and the newest at the
+  left; ← → move between them there, and the mouse wheel scrolls them sideways.
+  Yellow while it runs, with what it prints last; green once it's done; red when it failed,
+  and why; blue while it asks you something, such as whether to delete a model, and waits
+  for your answer. The column's title counts them: ◐ 2 run, ? 1 waits. The menu stays
+  usable meanwhile, and several entries can have something running
+  at once. What Update or Revert would ask, the menu asks first in a box of its own.
+- **A click on a card, or Enter on it, shows its whole log** in a window over the menu: the
+  command it ran, what that printed, and how it ended, live while it runs, progress bars
+  included. A question waits under the log: `y` answers yes, `n` no; Esc closes the window,
+  and the question keeps waiting. **save** or `s` writes it to a text file in `logs/`, ctrl+c stops what runs (an
+  Update, Revert or Rebuild asks first), and Esc or **×** closes it. Dragging the mouse
+  selects text there and in the log, and ctrl+c then copies it instead.
+- **× or `x` closes a card.** One whose action still runs, or waits for your answer, asks
+  first, since closing it stops that action; a finished one just closes. `c` closes every
+  finished one. The column keeps
+  the last 10; **AI Leverage › Notifications** changes that. Short messages, such as why
+  something can't be done now, show there too and go by themselves.
+- **Until an engine answers, its Start stays yellow,** and the list says **◐ LOADING** and
+  how long it's been, not ● UP: vLLM and SGLang take minutes to load a model.
+- **→ goes from the list to the log,** and Esc or ← back. **save** at the right end of its
+  frame, or `s`, writes it to a text file in `logs/`; ctrl+c stops following it. From the
+  log or the notifications, typing a number goes to that entry of the list.
 - **Alt and a menu's underlined letter opens it,** from anywhere: Alt+S is Stack, Alt+M
   Models, Alt+Y System (Stack has the S). A click on its title does too, and F10 opens the
   first one. In a menu, an entry's underlined letter does it at once, as in a desktop app,
   so Alt+S, `u` opens Updates. ↑↓ only move, and Enter does the highlighted entry. ← → go
-  to the menu next to it; Esc, `b` or a click beside it closes it. (Some terminals keep F10
+  to the menu next to it; Esc or a click beside it closes it. (Some terminals keep F10
   or Alt for their own menus; a click always works.)
 - **An entry with ▸ shows a menu beside it** as soon as it's highlighted, as in Norton
   Commander: Models › Downloaders lists the downloaders. Its letter, → or Enter goes into
-  it, ← or Esc back out, so Alt+M, `d`, `h` opens huggingface.
+  it, ← or Esc back out, so Alt+M, `d`, `h` opens huggingface. Moving with the arrows shows
+  the menus the same way; only the last step, the action itself, needs Enter.
 - **Tab and shift+Tab go from area to area,** the menu bar included, and ↑ from the list's
   top entry goes up to the bar. There ← → choose a menu, its letter, Enter or ↓ opens it,
-  and Esc or `b` goes back to the list.
+  and Esc goes back to the list.
 - **A downloader opens from Models › Downloaders,** such as **huggingface**: what it is
-  shows on the right, with its box of actions. What it runs shows in the pane under the log,
+  shows next to the list, with its box of actions. What it runs gets its notification card,
   and the menu says while it runs. ↑ or ↓ in the list brings the list back.
 - **What asks you more runs in the terminal as usual,** with the menu out of the way:
   installing or removing an app, the scripts that ask questions, and sudo when it needs your
   password again. The menu comes back when they're done.
 - **Everything the menu does is a script you can run yourself,** in any terminal, tmux or
-  over ssh. The panes show each command, such as
+  over ssh. Each notification's log shows its command, such as
   `src/bash/service.sh stack/engines/vllm start`, and `src/bash/service.sh` lists what else
   it does.
 - **ctrl+p finds any action by name,** such as "start vllm" or "update hermes", and switches
@@ -92,7 +109,7 @@ GPU   ▌               VRAM 0.7 GB used / 31.8 GB · 0% busy · 11 W · 31°C  
 **Disk** is the drive `models/` is on. A number turns yellow or red when the disk is nearly
 full, RAM runs low, or the GPU gets hot. The menu reads the engines' and services' status
 from Docker, which needs sudo. It reads it when it opens and after each thing you do, and
-**Stack › Refresh** reads it again. **System › Monitor** opens a live monitor in its own
+**Stack › Refresh status** reads it again. **System › Monitor** opens a live monitor in its own
 window. It also shows which engine uses how much of the GPU's memory, the CPU, and how fast
 a download runs. **Stack › Updates** opens the update overview and checks everything for
 updates; see [Updates](#-updates). **Models › Tuning › Fit** lists the best of your
@@ -106,7 +123,7 @@ without a desktop, and sudo asks where you type. That's also why it has its own 
 instead of your terminal's File/Edit/View, which a program inside a terminal can't change.
 Over ssh, start it in tmux, so a dropped connection doesn't stop an update halfway.
 
-1. Run **Models › Downloaders › ollama → sync_models** to download the models in
+1. Run **Models › Downloaders › Ollama → Sync models** to download the models in
    `stack/downloaders/ollama/models.txt`. That list is large and made for a 32 GB GPU, so
    trim it to what you want first (see [Hardware](#-hardware)).
 2. Start **ollama** under engines, then **docling** and **openwebui** under services.
@@ -116,7 +133,7 @@ Over ssh, start it in tmux, so a dropped connection doesn't stop an update halfw
 Below them, **apps** are programs on this PC itself, outside Docker. Each one has Install,
 Update, Revert, Hold and Uninstall; see [apps/README.md](apps/README.md).
 
-For the AI agent as well, start **hermes** and run **hermes → connect_openwebui** before
+For the AI agent as well, start **hermes** and run **hermes → Connect openwebui** before
 you start **openwebui** for the first time, so Open WebUI lists it too. Read
 [stack/services/hermes/README.md](stack/services/hermes/README.md) first: it explains which
 of your files Hermes can change.
@@ -145,12 +162,12 @@ of your files Hermes can change.
 
 - **Ollama** is the everyday engine: easy model switching, many models on one GPU.
 - **vLLM** is the fast engine for one model at a time. Pick the model with
-  `stack/engines/vllm/set_model.sh` (menu: **vllm → set_model**). It runs only models the
-  Hugging Face downloader fetched, and never goes online itself; set_model says when a
+  `stack/engines/vllm/set_model.sh` (menu: **vllm → Set model**). It runs only models the
+  Hugging Face downloader fetched, and never goes online itself; Set model says when a
   model still needs downloading.
 - **SGLang** is another fast engine for one model at a time, for the same models as vLLM,
   and locked down the same way. Some models run better on one, some on the other. Pick the
-  model with **sglang → set_model**, and run vLLM or SGLang, not both. See
+  model with **sglang → Set model**, and run vLLM or SGLang, not both. See
   [stack/engines/sglang/README.md](stack/engines/sglang/README.md).
 - **llama.cpp** runs models bigger than the GPU: what doesn't fit in the GPU's memory stays
   in the PC's memory, which works best for MoE models such as gpt-oss 120B. It runs GGUF
@@ -160,7 +177,7 @@ of your files Hermes can change.
 - **Docling** turns uploaded PDFs and Office files into text Open WebUI can search.
 - **Hermes** is an AI agent: it thinks with Ollama's models and reads, writes and links the
   files in one folder of yours, such as an Obsidian vault. Chat with it in the terminal
-  (**hermes → chat**) or as `hermes-agent` in Open WebUI. See
+  (**hermes → Chat**) or as `hermes-agent` in Open WebUI. See
   [stack/services/hermes/README.md](stack/services/hermes/README.md) for what it can reach.
 - Models live in the shared `models/` folder at the top of the repo, never inside a
   container, so updating or rebuilding a service never re-downloads them. The downloaders
@@ -173,7 +190,7 @@ of your files Hermes can change.
 | `stack/services/<name>/`    | What you use: the chat interface, the document reader, the agent |
 | `apps/<app>/`               | Desktop apps: where each comes from (`app.conf`), and its own scripts |
 | `src/bash/`                 | Helpers that `manage.sh` and `bootstrap.sh` use                 |
-| `src/python/`               | The menu (`menu.py`, its menu bar in `menubar.py`, its panes in `console.py`, the update overview in `updates.py`), the update check's registry lookup (`registry.py`), the model fit (`hardware.py`, `model_facts.py`, `model_fit.py`, `fit_screen.py`), and how GGUF files are named (`gguf_names.py`) |
+| `src/python/`               | The menu (`menu.py`, its menu bar in `menubar.py`, its panes in `console.py`, its notifications in `notices.py`, the update overview in `updates.py`), the update check's registry lookup (`registry.py`), the model fit (`hardware.py`, `model_facts.py`, `model_fit.py`, `fit_screen.py`), and how GGUF files are named (`gguf_names.py`) |
 | `config/`                   | Your settings for ai-leverage itself, such as what the model fit plans for (your copies are git-ignored) |
 | `models/`                   | Downloaded models (git-ignored)                                 |
 | `backups/`                  | Copies of the services' data that Update makes (git-ignored)    |
@@ -218,7 +235,7 @@ three actions in its menu:
 the menu: the version on this PC and the newest one. Each line changes as its answer comes
 in. A row's number offers its Update, Revert and Hold. **a** is **Update all**, which updates
 everything that has an update, one after another, after asking once. Each one runs in its
-own pane under the log, and the overview closes so you can watch it there.
+own notification, and the overview closes so you can watch them there.
 
 ```text
 ENGINES
@@ -270,8 +287,8 @@ TOOLS  updated another way
   32 GB of VRAM and 64 GB of RAM or more, MoE models of about 120B, such as gpt-oss 120B,
   run at a usable speed.
 - **Agents need a bigger context.** Hermes Agent needs at least 64k, and VS Code's agent
-  mode fills context quickly. The `agent/...` models that **Models › Downloaders › ollama →
-  sync_models** builds from `stack/downloaders/ollama/specs/` have 128k, and
+  mode fills context quickly. The `agent/...` models that **Models › Downloaders › Ollama →
+  Sync models** builds from `stack/downloaders/ollama/specs/` have 128k, and
   `agent/qwen3.6:35b` has 256k. The Hermes in `stack/services/hermes` uses
   `agent/qwen3.6:35b` out of the box. For an agent outside the stack, point it at one of
   those models, at `http://localhost:11434/v1`, and tell it the same context size (131072,
@@ -282,8 +299,9 @@ TOOLS  updated another way
   context sizes in `stack/downloaders/ollama/specs/`. On a smaller card, trim
   `stack/downloaders/ollama/models.txt` and `stack/downloaders/huggingface/models.txt`
   before the first sync. As a rule of thumb, a model needs its download size in VRAM,
-  plus room for the conversation. **f** works that out for the models you have, below.
-- **f finds the best models for what you need.** At the top you choose how much context
+  plus room for the conversation. **Models › Tuning › Fit** works that out for the models
+  you have, below.
+- **Models › Tuning › Fit finds the best models for what you need.** At the top you choose how much context
   you need, from 8k to the longest each model gets, and whether the PC's memory may help:
   on the GPU alone is fast, and with the PC's memory, bigger models and longer context run,
   slower. The list answers with the biggest models that manage it, each with the best way
@@ -309,7 +327,7 @@ TOOLS  updated another way
   exists if someone publishes it. Biggest first is a rough guide, not a benchmark, and the
   numbers are estimates, checked against real starts; the engine's log says what it really
   got. Your choices are kept in `config/model-fit.conf`, and vLLM's and SGLang's
-  **set_model** and llama.cpp's **list_models** use them for the estimate next to each model.
+  **Set model** and llama.cpp's **List models** use them for the estimate next to each model.
 - **vLLM and SGLang each claim most of the GPU's memory when they start** (vLLM 85%,
   SGLang what it works out for your card). Run only one of them, and stop it while you use
   Ollama's larger models or llama.cpp, or lower `VRAM_LIMIT` in its `.env`. llama.cpp takes
@@ -409,12 +427,16 @@ Put a new folder in the group that fits, and `manage.sh` finds it on its own:
   service), and reads an optional `.env` (copy the `env_file:` block). Settings that are
   the same for everyone go here, with safe defaults.
 - **`.env.template`** lists what someone might want to change on their own machine.
-- **Every executable `*.sh`** shows up as an entry in that folder's menu, for example a
-  `sync_models.sh` that downloads what `models.txt` lists. The menu runs it in the plain
-  terminal, so it can ask things. A script that only prints and never asks can say
-  `# menu: console` in the comment at its top, and the menu shows it in the pane under the
-  log instead. Either way it runs in its folder, exactly as typed there, and sudo in it works
-  while sudo still remembers your password; the menu asks for it first when it's needed.
+- **Every executable `*.sh`** shows up as an entry in that folder's menu, named after the
+  file: `sync_models.sh` is **Sync models**, which downloads what `models.txt` lists. The
+  menu runs it in the plain terminal, so it can ask things. A script can say
+  `# menu: console` in the comment at its top, and the menu runs it with a notification
+  instead, whose log shows what it prints. Such a script asks only yes/no questions, with
+  `ask_yes_no` from `src/bash/ask.sh`: in a terminal it asks there, and from the menu its
+  notification turns blue and waits for your answer. Either way it runs in its folder,
+  exactly as typed there, and sudo in it works while sudo still remembers your password;
+  the menu asks for it first when it's needed. The first paragraph of the comment at its
+  top is what the menu says about it, so keep that to a sentence or two.
 - **Its `README.md` describes it in the menu.** The menu shows the first paragraph, and **i**
   reads the whole README. For a script, the menu shows the comment at the top of the script,
   after the line with its path, to say what it does.

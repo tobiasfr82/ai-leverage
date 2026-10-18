@@ -182,13 +182,13 @@ apt_add_source() {
     tmp=$(mktemp -d)
     echo "●  Adding the $(host_of "$APT_URI") repository to apt..."
     if ! curl -fsSL "$APT_KEY_URL" -o "$tmp/key"; then
-        echo -e "${RED}✗ Couldn't download the repository's key from $APT_KEY_URL${NC}"
+        echo -e "${RED}× Couldn't download the repository's key from $APT_KEY_URL${NC}"
         rm -rf "$tmp"
         return 1
     fi
     fingerprints=$(gpg --show-keys --with-colons "$tmp/key" 2> /dev/null | awk -F: '$1 == "fpr" { print $10 }')
     if ! grep -qx "$APT_KEY_FINGERPRINT" <<< "$fingerprints"; then
-        echo -e "${RED}✗ The key from $APT_KEY_URL isn't the one app.conf expects"
+        echo -e "${RED}× The key from $APT_KEY_URL isn't the one app.conf expects"
         echo -e "  ($APT_KEY_FINGERPRINT). Stopped without changing anything.${NC}"
         rm -rf "$tmp"
         return 1
@@ -225,7 +225,7 @@ apt_refresh() {
     local file
     file=$(apt_source_file)
     if [ -z "$file" ]; then
-        echo -e "${RED}✗ No apt source lists $APT_URI. Install $APP from this menu to add it.${NC}"
+        echo -e "${RED}× No apt source lists $APT_URI. Install $APP from this menu to add it.${NC}"
         return 1
     fi
     sudo apt-get update -qq -o Dir::Etc::sourcelist="$file" -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0
@@ -326,7 +326,7 @@ script_run_installer() {
     local installer status
     installer=$(mktemp)
     if ! curl -fsSL "$SCRIPT_INSTALLER_URL" -o "$installer"; then
-        echo -e "${RED}✗ Couldn't download the installer from $SCRIPT_INSTALLER_URL${NC}"
+        echo -e "${RED}× Couldn't download the installer from $SCRIPT_INSTALLER_URL${NC}"
         rm -f "$installer"
         return 1
     fi
@@ -421,7 +421,7 @@ do_install() {
     local where
     case "$(state)" in
         installed)
-            echo -e "${GREEN}✓ $APP $(m version) is already installed ($(m source)).${NC}"
+            echo -e "${GREEN}√ $APP $(m version) is already installed ($(m source)).${NC}"
             remove_replaced
             return 0
             ;;
@@ -442,11 +442,11 @@ do_install() {
     esac
     echo -e "${CYAN}●  Installing $APP ($(m source))...${NC}"
     if ! m install || ! m installed; then
-        echo -e "${RED}✗ $APP couldn't be installed. See the messages above.${NC}"
+        echo -e "${RED}× $APP couldn't be installed. See the messages above.${NC}"
         return 1
     fi
     remove_replaced
-    echo -e "${GREEN}✓ $APP $(m version) is installed.${NC}"
+    echo -e "${GREEN}√ $APP $(m version) is installed.${NC}"
 }
 
 do_uninstall() {
@@ -465,12 +465,12 @@ do_uninstall() {
     ask "Uninstall $APP?" || { echo -e "${CYAN}Cancelled.${NC}"; return 0; }
     m held && { m release || return 1; }
     if ! m uninstall; then
-        echo -e "${RED}✗ $APP couldn't be removed. See the messages above.${NC}"
+        echo -e "${RED}× $APP couldn't be removed. See the messages above.${NC}"
         return 1
     fi
     rm -rf "$REVERT_DIR" "$HOLD_FILE"
     forget_check
-    echo -e "${GREEN}✓ $APP is uninstalled.${NC}"
+    echo -e "${GREEN}√ $APP is uninstalled.${NC}"
 }
 
 case "$ACTION" in

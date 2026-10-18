@@ -139,11 +139,11 @@ do_update() {
     fi
     echo -e "${CYAN}●  Checking for a newer $APP ($(m source))...${NC}"
     if ! m latest; then
-        echo -e "${RED}✗ Couldn't find out the newest version. See the messages above.${NC}"
+        echo -e "${RED}× Couldn't find out the newest version. See the messages above.${NC}"
         return 1
     fi
     if ! m is_newer; then
-        echo -e "${GREEN}✓ $APP $current is the newest stable release.${NC}"
+        echo -e "${GREEN}√ $APP $current is the newest stable release.${NC}"
         forget_check
         return 0
     fi
@@ -165,11 +165,11 @@ do_update() {
     fi
 
     if ! m update; then
-        echo -e "${RED}✗ The update failed. See the messages above.${NC}"
+        echo -e "${RED}× The update failed. See the messages above.${NC}"
         return 1
     fi
     forget_check
-    echo -e "${GREEN}✓ $APP is now $(m version). Revert goes back to $current.${NC}"
+    echo -e "${GREEN}√ $APP is now $(m version). Revert goes back to $current.${NC}"
     hook after_update
     return 0
 }
@@ -191,13 +191,13 @@ do_revert() {
     ask "Revert $APP?" || { echo -e "${CYAN}Cancelled.${NC}"; return 0; }
     m held && { m release || return 1; }
     if ! m install_ref "$REF"; then
-        echo -e "${RED}✗ Couldn't go back to $VERSION. See the messages above.${NC}"
+        echo -e "${RED}× Couldn't go back to $VERSION. See the messages above.${NC}"
         return 1
     fi
     m hold
     rm -rf "$REVERT_DIR"
     forget_check
-    echo -e "${GREEN}✓ $APP is back on $(m version) and held there.${NC}"
+    echo -e "${GREEN}√ $APP is back on $(m version) and held there.${NC}"
     echo "Release the hold once a fixed version is out, then Update."
 }
 
@@ -212,7 +212,7 @@ do_hold() {
     fi
     m hold || return 1
     forget_check
-    echo -e "${GREEN}✓ $APP stays at $(m version). Update skips it until you release the hold.${NC}"
+    echo -e "${GREEN}√ $APP stays at $(m version). Update skips it until you release the hold.${NC}"
     hook hold_note
     return 0
 }
@@ -224,5 +224,5 @@ do_release() {
     fi
     m release || return 1
     forget_check
-    echo -e "${GREEN}✓ $APP isn't held anymore. Update can update it again.${NC}"
+    echo -e "${GREEN}√ $APP isn't held anymore. Update can update it again.${NC}"
 }

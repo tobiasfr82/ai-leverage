@@ -1,5 +1,5 @@
 # ai-leverage/config/model-fit.conf.template
-# What the model fit (manage.sh -> f) plans for: how much context you need,
+# What the model fit (Models › Tuning › Fit) plans for: how much context you need,
 # where a model may run, and how many conversations run at once.
 # Your own choices go in model-fit.conf next to this file, which git ignores.
 # f creates it from this file and changes it for you, or edit it by hand:

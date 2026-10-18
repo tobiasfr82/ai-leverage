@@ -62,60 +62,34 @@ MenuDropdown {
     padding: 0;
 }
 
-/* The main area is a grid: the list on the left, all the way down; on the
-   right, the highlighted entry's log, and what was done to it under that */
+/* The main area under the PC's panel. From 160 columns, three columns side
+   by side, the same height: the list, the highlighted entry's log, and the
+   notifications; the list and the notifications keep their widths and the
+   log gets the rest. Narrower, the list and the log side by side, and the
+   notifications in a row along the bottom, their cards side by side. */
 #main {
     height: 1fr;
     layout: grid;
     grid-size: 2 2;
-    grid-columns: 5fr 7fr;
-    grid-rows: 1fr 12;
+    grid-columns: 2fr 3fr;
+    grid-rows: 1fr 6;
 }
-/* From 128 columns, the list gets the room for its versions and update hints */
-Screen.-very-wide #main {
-    grid-columns: 64 1fr;
+Screen.-wide #main {
+    grid-size: 3 1;
+    grid-columns: 64 1fr 44;
+    grid-rows: 1fr;
 }
-Screen.-short #main {
-    grid-rows: 1fr 8;
-}
-#stack {
-    row-span: 2;
-}
-#stack, #log, #actions {
+#stack, #log, #notices {
     width: 100%;
     height: 100%;
-}
-
-/* A maximized pane takes the whole area; the list and the other pane wait */
-Screen.-maximized #stack, Screen.-maximized Pane {
-    display: none;
-}
-Screen.-maximized Pane.-max {
-    display: block;
-    column-span: 2;
-    row-span: 2;
-}
-
-/* Under 100 columns there's no room side by side: the list, then the panes under it */
-Screen.-narrow #main {
-    grid-size: 1 3;
-    grid-columns: 1fr;
-    grid-rows: 1fr 1fr 9;
-}
-Screen.-narrow.-short #main {
-    grid-rows: 1fr 1fr 7;
-}
-Screen.-narrow #stack {
-    row-span: 1;
-}
-Screen.-narrow.-maximized Pane.-max {
-    column-span: 1;
-    row-span: 3;
 }
 
 JumpList {
     background: $surface;
     scrollbar-size-vertical: 1;
+    scrollbar-background: $surface;
+    scrollbar-background-hover: $surface;
+    scrollbar-background-active: $surface;
 }
 /* The box around a list already shows where you are; no tint inside it */
 JumpList:focus {
@@ -140,9 +114,14 @@ JumpList > .option-list--option-hover {
     background: $primary 10%;
 }
 
-/* The panes on the right: text, scrolled; their controls sit in the frame */
+/* The log, and a notification's log: text, scrolled; their controls sit in
+   the frame. The scrollbar's track is the panel's own colour, so it reads as
+   part of the panel, not as a gap next to it. */
 Pane {
     scrollbar-size-vertical: 1;
+    scrollbar-background: $surface;
+    scrollbar-background-hover: $surface;
+    scrollbar-background-active: $surface;
     link-color: initial;
     link-style: none;
     link-color-hover: initial;
@@ -151,6 +130,147 @@ Pane {
 }
 Pane:focus {
     background-tint: $foreground 0%;
+}
+
+/* The notifications: a card each, the newest at the top, coloured by how
+   it's doing (yellow runs, green done, red failed) */
+#notices {
+    padding: 0 1;
+    scrollbar-size-vertical: 1;
+    scrollbar-background: $surface;
+    scrollbar-background-hover: $surface;
+    scrollbar-background-active: $surface;
+}
+#notices:focus {
+    background-tint: $foreground 0%;
+}
+#notices-empty {
+    height: auto;
+    padding: 0 1;
+}
+/* The row along the bottom, in a narrower terminal: the cards side by side,
+   the newest at the left, three lines each, scrolled sideways */
+Screen.-narrow #notices {
+    column-span: 2;
+    layout: horizontal;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-size-horizontal: 1;
+}
+Screen.-narrow #notices-empty {
+    width: 1fr;
+}
+Screen.-narrow NoticeCard {
+    width: 38;
+    height: 3;
+    margin: 0 1 0 0;
+}
+/* A short message: grey, since it needs nothing from you */
+NoticeCard {
+    height: auto;
+    margin-bottom: 1;
+    padding: 0 0 0 1;
+    border-left: outer $foreground-muted;
+    background: $foreground 5%;
+}
+/* Its script asks you something and waits */
+NoticeCard.-asking {
+    border-left: outer $primary;
+    background: $primary 14%;
+}
+NoticeCard.-running, NoticeCard.-warning {
+    border-left: outer $warning;
+    background: $warning 10%;
+}
+NoticeCard.-done {
+    border-left: outer $success;
+    background: $success 8%;
+}
+NoticeCard.-failed {
+    border-left: outer $error;
+    background: $error 10%;
+}
+NoticeCard:hover {
+    background-tint: $foreground 6%;
+}
+/* The card Enter opens, while the column has the focus: the list's highlight band */
+#notices:focus NoticeCard.-cursor {
+    background: $primary 38%;
+}
+CardText {
+    width: 1fr;
+    height: auto;
+}
+CloseButton {
+    width: 3;
+    height: 1;
+    content-align: center top;
+    color: $foreground-muted;
+}
+CloseButton:hover {
+    color: $text;
+    background: $error 50%;
+}
+
+/* A notification's whole log, in a window over the menu */
+RunWindow {
+    align: center middle;
+    background: $background 50%;
+}
+#runwindow {
+    width: 124;
+    max-width: 96%;
+    height: 90%;
+}
+#runlog {
+    height: 1fr;
+    border: round $border;
+    border-subtitle-align: right;
+}
+/* What its script asks, under the log, in the colour of a card that waits */
+#asking {
+    height: auto;
+    background: $surface;
+    border: round $primary;
+    border-title-color: $primary;
+    border-subtitle-align: right;
+    padding: 0 1;
+}
+#asking-question {
+    margin-bottom: 1;
+}
+#asking-answers, #asking-answers:focus {
+    height: auto;
+    border: none;
+    padding: 0;
+    background: $surface;
+}
+
+/* A choice, over the menu, such as how many notifications to keep */
+Choose {
+    align: center middle;
+    background: $background 50%;
+}
+#choose {
+    width: 66;
+    max-width: 90%;
+    height: auto;
+    background: $surface;
+    border: round $border;
+    border-title-color: $text;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: right;
+    padding: 1 2;
+}
+#choose-text {
+    margin-bottom: 1;
+}
+#choices, #choices:focus {
+    height: auto;
+    border: none;
+    padding: 0;
+    background: $surface;
 }
 
 #keys {
@@ -192,10 +312,10 @@ ActionsMenu {
     padding: 0;
     background: $surface;
 }
+/* As high as its longest text needs (set as the box fills), so text wraps instead of being cut */
 #popup-hint {
     height: auto;
-    min-height: 2;
-    max-height: 4;
+    min-height: 3;
     margin-bottom: 1;
     border-top: solid $foreground 15%;
 }
@@ -230,8 +350,7 @@ UpdatesMenu {
 }
 #updates-hint {
     height: auto;
-    min-height: 2;
-    max-height: 4;
+    min-height: 3;
     margin-bottom: 1;
     border-top: solid $foreground 15%;
 }

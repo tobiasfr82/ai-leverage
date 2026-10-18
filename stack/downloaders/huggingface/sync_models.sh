@@ -1,8 +1,9 @@
 #!/bin/bash
 # ai-leverage/stack/downloaders/huggingface/sync_models.sh
-# Downloads every model in models.txt into the shared models/huggingface folder,
-# where vLLM, SGLang and llama.cpp find them. Files already downloaded are
-# skipped, so re-runs are quick.
+# Downloads every model in models.txt into the shared models/huggingface
+# folder; files already there are skipped.
+#
+# vLLM, SGLang and llama.cpp all find their models there.
 #
 # menu: console   (manage.sh's menu shows what it prints without leaving the menu: it never asks anything)
 
@@ -41,8 +42,14 @@ read -ra EXCLUDES <<< "${HF_EXCLUDE//,/ }"
 DOWNLOAD_ARGS=()
 for pattern in "${INCLUDES[@]}"; do DOWNLOAD_ARGS+=(--include "$pattern"); done
 for pattern in "${EXCLUDES[@]}"; do DOWNLOAD_ARGS+=(--exclude "$pattern"); done
-QUIET=()
-[[ "${HF_QUIET,,}" == "true" ]] && QUIET=(--quiet)
+# How hf prints: for a person, with a progress bar, or only the paths with
+# HF_QUIET=true in .env. Never its short form for AI agents, which it picks by
+# itself when it thinks one runs it.
+FORMAT=(--format human)
+[[ "${HF_QUIET,,}" == "true" ]] && FORMAT=(--quiet)
+# Outside a terminal, such as in the menu's notification, hf shows no progress
+# unless told to, and a 50 GB download would say nothing for half an hour
+[ -t 1 ] || export TQDM_POSITION=-1
 
 # A line without a size is for vLLM and SGLang, which need .safetensors weights.
 # Says so when a model has none, for example a GGUF model whose line lacks a size.
@@ -66,13 +73,13 @@ warn_if_no_weights() {
 download() {
     local model=$1 repo=${1%%:*} list files
     if [[ "$model" != *:* ]]; then
-        uv run hf download "$repo" "${DOWNLOAD_ARGS[@]}" "${QUIET[@]}" < /dev/null || return 1
+        uv run hf download "$repo" "${DOWNLOAD_ARGS[@]}" "${FORMAT[@]}" < /dev/null || return 1
         warn_if_no_weights "$repo"
         return 0
     fi
     list=$(uv run python -I gguf_files.py "$repo" "${model#*:}" < /dev/null) || return 1
     mapfile -t files <<< "$list"
-    uv run hf download "$repo" "${files[@]}" "${QUIET[@]}" < /dev/null
+    uv run hf download "$repo" "${files[@]}" "${FORMAT[@]}" < /dev/null
 }
 
 echo "---------------------------------------------------"
@@ -118,7 +125,7 @@ done < "$MODELS_FILE"
 # 4. Summary
 if [ "$GGUF_SYNCED" = true ]; then
     echo "llama.cpp reads its list of models when it starts. If it runs, Restart it"
-    echo "(manage.sh -> llamacpp -> Restart) so it lists new GGUF downloads."
+    echo "(in the menu: llamacpp → Restart) so it lists new GGUF downloads."
 fi
 if [ ${#SKIPPED[@]} -gt 0 ]; then
     echo "Skipped ${#SKIPPED[@]} gated model(s). Accept their terms on huggingface.co,"

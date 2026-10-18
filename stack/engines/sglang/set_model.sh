@@ -1,8 +1,10 @@
 #!/bin/bash
 # ai-leverage/stack/engines/sglang/set_model.sh
-# Pick which downloaded Hugging Face model SGLang serves. The choice is saved in
-# .env (git-ignored), and SGLang can be restarted with it right away.
-# The picker itself is shared with vLLM: src/bash/pick-huggingface-model.sh
+# Picks which downloaded model SGLang serves and saves it in its .env; SGLang
+# can restart with it right away.
+#
+# The choice goes in .env, which git ignores. The picker itself is shared with
+# vLLM: src/bash/pick-huggingface-model.sh
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 

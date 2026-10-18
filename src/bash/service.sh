@@ -228,7 +228,7 @@ set_env() {
     if [ -f "$file" ] && grep -q "^$1=" "$file"; then
         sed -i "s|^$1=.*|$1=$2|" "$file"
     else
-        printf '\n# Set by Update, which follows the newest release (manage.sh -> Update)\n%s=%s\n' "$1" "$2" >> "$file"
+        printf '\n# Set by Update, which follows the newest release (Update in the menu)\n%s=%s\n' "$1" "$2" >> "$file"
     fi
 }
 
@@ -605,7 +605,7 @@ docker_update() {
     if ${BACKUP_WANTED:-false}; then
         # Named after the version the data belongs to, the one being replaced
         if ! stop_for_copy || ! make_backup "$(docker_version)"; then
-            echo -e "${RED}✗ The backup failed, so $APP stays on its version.${NC}"
+            echo -e "${RED}× The backup failed, so $APP stays on its version.${NC}"
             put_tags_back
             for i in "${!SERVICES[@]}"; do
                 [ -n "${LOCAL_IDS[$i]}" ] && sudo docker tag "${LOCAL_IDS[$i]}" "${IMAGES[$i]}"
@@ -630,12 +630,12 @@ docker_install_ref() {
     local pair service id i
     if [ -n "${RESTORE_FILE:-}" ]; then
         if ! stop_for_copy || ! make_backup "$(docker_version)_before-revert"; then
-            echo -e "${RED}✗ Couldn't back up $(data_names) as it is now, so nothing was put back.${NC}"
+            echo -e "${RED}× Couldn't back up $(data_names) as it is now, so nothing was put back.${NC}"
             start_again
             return 1
         fi
         if ! restore_backup "$RESTORE_FILE"; then
-            echo -e "${RED}✗ Putting the backup back failed. $(data_names) as it was is in"
+            echo -e "${RED}× Putting the backup back failed. $(data_names) as it was is in"
             echo -e "${BACKUP_FILE#"$BASE_DIR"/}.${NC}"
             return 1
         fi

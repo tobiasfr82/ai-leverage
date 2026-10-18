@@ -1,40 +1,48 @@
 #!/usr/bin/env python3
 """ai-leverage/src/python/console.py
 
-The two panes on the menu's right side. Both are about the entry the list
-highlights, so moving through the list is how you switch between them:
+What the menu runs, and the pane that shows an entry's log:
 
-- LogPane, at the top: the entry's own log, from src/bash/service.sh logs.
-  While its container runs, what it printed since it started and then as it
-  comes; once stopped, its last run, which Docker keeps until the container
-  is deleted. An entry without a log (a downloader, an app, an engine with
-  no container yet) shows what it is instead.
-- ActionPane, under it: what was done to the entry since the menu opened:
-  Start, Stop, Restart, Rebuild, and the folders' scripts that only print,
-  each with the command it ran, what that printed and how it ended. Several
-  entries can have something running at once; the list says which.
+- LogPane, right of the list: the highlighted entry's own log, from
+  src/bash/service.sh logs. While its container runs, what it printed since
+  it started and then as it comes; once stopped, its last run, which Docker
+  keeps until the container is deleted. An entry without a log (a
+  downloader, an app, an engine with no container yet) shows what it is
+  instead.
+- Runs: what the menu ran since it opened, such as Start, Stop, Update and
+  the folders' scripts that only print, each with the command it ran, what
+  that printed and how it ended. Several entries can have something running
+  at once. Each one's notification shows how it goes, and its whole log
+  (notices.py).
 
-Each pane works like a window. At the right end of its frame, save writes
-what it shows to a text file in logs/, and ▢ gives it the whole area under
-the hardware panel (❐ puts it back). A double click on its frame does that
-too, as on a title bar, and Esc restores. Keys, as everywhere in the menu: a
-letter does it at once. m maximizes or restores (so does Enter), s saves and
-b goes back to the list. ctrl+c stops what runs, and everything it started,
+At the right end of the log's frame, save writes what it shows to a text
+file in logs/. Keys, as everywhere in the menu: a letter does it at once. s
+saves, Esc (or ←) goes back to the list, and a number goes to that entry of
+the list. ctrl+c stops following the log.
+In a notification's log, ctrl+c stops what runs, and everything it started,
 as in a terminal; stopping an Update, Revert or Rebuild halfway asks first.
+A script can ask a yes/no question from there too (src/bash/ask.sh): it
+writes the question on a channel of its own, AI_LEVERAGE_ASK_FD, apart from
+what it prints, and reads the answer back from it. Its card then waits for
+you, and the answer is given in its log window.
 
 What runs finds src/bash/console first on its PATH, so sudo never waits
-there for a password nobody can type (see the sudo in that folder). A line a
-command redraws in place (\\r), such as a progress bar, shows as it changes.
-The panes show output and can't be typed into, so what asks you something
-still runs in the plain terminal (tui.step_aside). Not run on its own:
-menu.py uses it.
+there for a password nobody can type (see the sudo in that folder). What a
+command redraws in place, such as a progress bar (with \\r, or by moving the
+cursor back up, as Ollama's does), shows as it changes (Redraw). The mouse
+selects text in a pane, and ctrl+c copies it.
+What's shown can't be typed into, so a script that asks anything else still
+runs in the plain terminal (tui.step_aside). Not run on its own: menu.py
+uses it.
 """
 
 import codecs
 import os
 import re
+import select
 import shlex
 import signal
+import socket
 import subprocess
 import threading
 import time
@@ -44,6 +52,7 @@ from rich.text import Text
 from textual.binding import Binding
 from textual.content import Content
 from textual.geometry import Size
+from textual.strip import Strip
 from textual.widgets import RichLog
 
 import stack
@@ -53,13 +62,29 @@ LOGS_DIR = os.path.join(stack.BASE_DIR, "logs")
 SUDO_DIR = os.path.join(stack.BASE_DIR, "src", "bash", "console")
 SERVICE = os.path.join(stack.SCRIPT_DIR, "service.sh")
 KEEP_LINES = 5_000    # per run; older lines drop off the top, and out of a saved file
+COLUMNS = 118         # the width what runs is told its terminal has: a notification's log window
 ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][A-Za-z0-9]")
 
+# What a command prints, cut at the terminal's moves: \r, \n, control sequences
+# (the cursor up, to a column, clearing a line, colours…), titles and the like
+CONTROL = re.compile(r"(\r|\n|\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][A-Za-z0-9]|\x1b[=>78])")
+# The start of one of them, at the end of what has come so far: the rest comes next
+PARTIAL = re.compile(r"\x1b(?:\[[0-9;?]*[ -/]*|\][^\x07\x1b]*|[()])?$")
+
+# Symbols some terminal fonts lack or draw two cells wide, which shifts the rest
+# of their row in such a terminal; in what commands print they show as
+# look-alikes every font has: check marks as a root sign, crosses as a times
+# sign, the warning sign as !, the play triangle as a pointer, framed squares
+# as plain ones
+SAFE = str.maketrans({"\u2713": "\u221a", "\u2714": "\u221a", "\u2717": "\u00d7", "\u2718": "\u00d7",
+                      "\u2715": "\u00d7", "\u2716": "\u00d7", "\u26a0": "!", "\u25b6": "\u25ba",
+                      "\u2750": "\u25ab", "\u25a3": "\u25ab", "\u25a2": "\u25a1"})
+
 # The letters that do something in a pane, at once, and what that is
-LETTERS = {"m": "max", "s": "save", "b": "back"}
+LETTERS = {"s": "save"}
 
 
-# What's run in the pane of what was done whose stopping halfway can leave things half done
+# What's run whose stopping halfway can leave things half done
 RISKY = {"Update", "Revert", "Rebuild"}
 
 
@@ -106,11 +131,91 @@ def environment(columns=None):
     return env
 
 
-def newest(line):
-    """The newest version of a line a command redrew in place with \\r, such
-    as a download's progress bar"""
-    parts = [part for part in line.split("\r") if part]
-    return parts[-1] if parts else ""
+class Redraw:
+    """What a command prints, line by line, the way a terminal shows it: \\r
+    starts the line over, and a progress display that moves the cursor back
+    up redraws the lines under it in place, as Ollama's and tqdm's do. A line
+    is done once the cursor is past it for good: REACH lines later, or as
+    many as the cursor has gone back up, if that's more. The lines not done
+    yet show too, as they are now (live)."""
+
+    REACH = 8  # the last lines kept open, since a progress display may still go back up to them
+
+    def __init__(self):
+        self.lines = [""]    # the lines that may still change; the cursor is on one of them
+        self.row = 0         # the cursor's line in them; below 0 it's on one that's done
+        self.fresh = False   # the next text starts the cursor's line over
+        self.reach = self.REACH  # how far back up the cursor may still go
+        self.above = ""      # what's written on a line that's done: a line of its own
+        self.carry = ""      # the start of a control sequence whose end comes next
+
+    def feed(self, text):
+        """More of what it printed. Returns the lines that are done."""
+        text, self.carry = self.carry + text, ""
+        partial = PARTIAL.search(text)
+        if partial:
+            text, self.carry = text[:partial.start()], text[partial.start():]
+        done = []
+        for piece in CONTROL.split(text):
+            if not piece:
+                continue
+            if piece == "\n":
+                self.move(1, done)
+            elif piece == "\r":
+                self.fresh = True
+            elif piece.startswith("\x1b["):
+                params, final = piece[2:-1], piece[-1]
+                count = int(params) if params.isdigit() else 1
+                if final == "A":
+                    self.move(-count, done)
+                elif final == "B":
+                    self.move(min(count, len(self.lines) - 1 - self.row), done)
+                elif final in "GH":
+                    self.fresh = True    # to a column, or the top: what follows starts the line over
+                elif final == "K" and (params == "2" or self.fresh) and 0 <= self.row < len(self.lines):
+                    self.lines[self.row] = ""
+                elif final == "m":
+                    self.write(piece)    # colours go with the text
+            elif piece[0] != "\x1b":
+                self.write(piece)
+        cut = min(self.row, len(self.lines) - 1 - self.reach)
+        if cut > 0:
+            done += self.lines[:cut]
+            del self.lines[:cut]
+            self.row -= cut
+        return done
+
+    def move(self, rows, done):
+        """The cursor up (rows below 0) or down, to the start of a line"""
+        if self.row < 0 and self.above:
+            done.append(self.above)
+            self.above = ""
+        self.row += rows
+        if self.row >= len(self.lines):
+            self.lines += [""] * (self.row - len(self.lines) + 1)
+        if rows < 0:
+            self.reach = max(self.reach, len(self.lines) - 1 - self.row)
+        self.fresh = True
+
+    def write(self, text):
+        if self.row < 0:
+            self.above = text if self.fresh else self.above + text
+        elif self.fresh:
+            self.lines[self.row] = text
+        else:
+            self.lines[self.row] += text
+        self.fresh = False
+
+    def live(self):
+        """The lines that may still change, as they are now"""
+        lines = self.lines[:-1] if self.lines[-1] == "" else self.lines
+        return "\n".join(lines)
+
+    def close(self):
+        """What's left, done: the command has ended"""
+        lines = ([self.above] if self.above else []) + (self.lines[:-1] if self.lines[-1] == "" else self.lines)
+        self.__init__()
+        return lines
 
 
 # --- Running commands ---
@@ -126,6 +231,7 @@ class Run:
         self.keep_going = keep_going  # run every step, even after one failed
         self.lines = deque(maxlen=KEEP_LINES)  # what it printed, without colours, for saving
         self.shown = deque(maxlen=KEEP_LINES)  # the same as shown, (text, style), to lay out again
+        self.total = 0                # how many lines it printed in all, older ones dropped or not
         self.pending = deque()        # lines the worker read and the pane doesn't show yet
         self.live = None              # the line a command is still writing, such as a progress bar
         self.columns = 100            # the width a command is told its terminal has
@@ -133,8 +239,12 @@ class Run:
         self.code = None
         self.started = time.monotonic()
         self.wall = time.time()
+        self.finished = None          # when it was done, as time.monotonic() and as time.time()
+        self.finished_wall = None
         self.proc = None
         self.stopping = False
+        self.question = None          # what its script asks and waits for: (question, yes, no)
+        self.asker = None             # the menu's end of the channel its script asks on
 
 
 def launch(app, run, on_output, on_end):
@@ -155,38 +265,71 @@ def launch(app, run, on_output, on_end):
     def execute(command, folder):
         """One command, its output into the run as it comes"""
         env = environment(run.columns)
+        # The channel it can ask on, apart from what it prints: it writes a question there and reads the answer
+        mine, theirs = socket.socketpair()
+        env["AI_LEVERAGE_ASK_FD"] = str(theirs.fileno())
         try:
             # In the menu's own process group, the way its status reads run
             # sudo, which keeps sudo's remembered password working
             proc = subprocess.Popen(command, cwd=folder, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, env=env)
+                                    stderr=subprocess.STDOUT, env=env, pass_fds=(theirs.fileno(),))
         except OSError as error:
+            mine.close()
             say(f"Couldn't run {command[0]}: {error.strerror}", "$error")
             return 127
-        run.proc = proc
+        finally:
+            theirs.close()
+        run.proc, run.asker = proc, mine
         if run.stopping:
             # Told to stop while it was starting
             send(run, signal.SIGTERM)
         decoder = codecs.getincrementaldecoder("utf-8")("replace")
-        text, shown = "", 0.0
+        screen, shown, ended = Redraw(), 0.0, None
+        out, asked, listening = proc.stdout.fileno(), b"", True
         while True:
-            chunk = proc.stdout.read1(65536)
-            text += decoder.decode(chunk, final=not chunk)
-            *lines, text = text.split("\n")
-            for line in lines:
-                run.pending.append((newest(line), None))
-            if "\r" in text:
-                # Redrawn in place: only its newest version counts
-                text = "\r" + newest(text)
-            run.live = newest(text) or None
-            if not chunk:
+            ready = select.select([out, mine] if listening else [out], [], [], 0.25)[0]
+            if out in ready:
+                chunk = os.read(out, 65536)
+            elif mine in ready:
+                chunk = None
+            else:
+                # Nothing more for now. Once it has ended, what it left running in the
+                # background, still holding its output open, isn't waited for long
+                if proc.poll() is None:
+                    continue
+                ended = ended or time.monotonic()
+                if time.monotonic() - ended < 1:
+                    continue
+                chunk = b""
+            if chunk is not None:
+                for line in screen.feed(decoder.decode(chunk, final=not chunk)):
+                    run.pending.append((line, None))
+            if mine in ready:
+                # It asks. What it printed before is done: nothing redraws while it waits,
+                # and the answer goes under it
+                heard = mine.recv(4096)
+                listening = bool(heard)
+                asked += heard
+                while b"\n" in asked:
+                    line, asked = asked.split(b"\n", 1)
+                    parts = line.decode("utf-8", "replace").split("\t")
+                    if parts[0] == "ask" and len(parts) == 4:
+                        for done in screen.close():
+                            run.pending.append((done, None))
+                        run.question = tuple(parts[1:])
+                        shown = 0.0
+            # The lines it may still redraw, such as a progress bar, show in place
+            run.live = screen.live() or None
+            if chunk == b"":
                 break
             if time.monotonic() - shown > 0.05:
                 ui(on_output, run)
                 shown = time.monotonic()
-        if run.live:
-            run.pending.append((run.live, None))
-            run.live = None
+        for line in screen.close():
+            run.pending.append((line, None))
+        run.live = run.question = run.asker = None
+        mine.close()
+        proc.stdout.close()
         proc.wait()
         run.proc = None
         ui(on_output, run)
@@ -238,13 +381,12 @@ def stop(app, run):
 # --- The panes ---
 
 class Pane(RichLog):
-    """A pane of text on the right, scrolled with the arrows, Page Up/Down and
-    the mouse, framed like a window: its title on the left of the frame, save
-    and ▢ (maximize) or ❐ (restore) on the right"""
+    """A pane of text, scrolled with the arrows, Page Up/Down and the mouse,
+    framed like a window: its title on the left of the frame, its controls,
+    such as save, on the right"""
 
     BINDINGS = [
-        Binding("enter", "enter", show=False),
-        Binding("escape", "restore", show=False),
+        Binding("escape", "app.pane_back", show=False),
         Binding("left", "app.pane_back", show=False),
         Binding("ctrl+c", "stop", show=False),
     ]
@@ -277,8 +419,8 @@ class Pane(RichLog):
 
     def parts(self, text, style):
         """A line as what to write, and the width to wrap it at: the pane's.
-        A pane out of sight (behind a maximized one) has no width, so its
-        lines wrap at the width it had when last in sight."""
+        A pane that has no width at the moment wraps its lines at the width
+        it had last."""
         width = self.scrollable_content_region.width
         if width:
             self.wrap_width = width
@@ -286,6 +428,7 @@ class Pane(RichLog):
             width = getattr(self, "wrap_width", None)
         if isinstance(text, Content):
             return (text.wrap(width) if width else [text]), width
+        text = text.translate(SAFE)
         if not style:
             return [Text.from_ansi(text)], width
         content = Content.styled(text, style)
@@ -315,6 +458,35 @@ class Pane(RichLog):
             self.refresh()
         self.live, self.live_text = 0, None
 
+    # --- Selecting text with the mouse, which ctrl+c copies ---
+
+    def render_line(self, y):
+        """A line on screen, with where each part of it is, so the mouse can
+        select text, and the selection marked"""
+        scroll_x, scroll_y = self.scroll_offset
+        index = scroll_y + y
+        line = self._render_line(index, scroll_x, self.scrollable_content_region.width)
+        selection = self.text_selection
+        if selection is not None and index < len(self.lines):
+            span = selection.get_span(index)
+            if span is not None:
+                start, end = span
+                end = self.lines[index].cell_length if end == -1 else end
+                start, end = max(0, start - scroll_x), min(line.cell_length, end - scroll_x)
+                if end > start:
+                    before, chosen, after = line.divide([start, end, line.cell_length])
+                    marked = chosen.apply_style(self.screen.get_component_rich_style("screen--selection"))
+                    line = Strip.join([before, marked, after])
+        return line.apply_offsets(scroll_x, index).apply_style(self.rich_style)
+
+    def get_selection(self, selection):
+        """The text the mouse selected"""
+        return selection.extract("\n".join(line.text for line in self.lines)), "\n"
+
+    def selection_updated(self, selection):
+        self._line_cache.clear()
+        self.refresh()
+
     def on_resize(self, event):
         super().on_resize(event)
         if event.size.width and event.size.width != self.laid_out_at:
@@ -324,17 +496,13 @@ class Pane(RichLog):
 
     # --- The frame: its title, and the controls at the right ---
 
-    def maximized(self):
-        return self.has_class("-max")
-
     def controls(self):
         """(name, text, what it does) for each control at the right of the frame"""
-        if self.maximized():
-            size = ("max", "❐", "Restore: back next to the list   m, Enter or Esc")
-        else:
-            size = ("max", "▢", "Maximize: the whole area under the hardware panel   m, Enter, or a double click on the "
-                                "frame")
-        return [("save", "save", "Save what this shows as a text file in logs/   s"), size]
+        return [("save", "save", "Save what this shows as a text file in logs/   s")]
+
+    def click(self, name):
+        """The action a click on a control in the frame runs"""
+        return f"app.pane_do({self.id!r}, {name!r})"
 
     def set_title(self, main, note=None):
         self.title_main = main if isinstance(main, Content) else Content.styled(main, "bold")
@@ -348,8 +516,8 @@ class Pane(RichLog):
         if width < 16:
             return
         controls = Content.assemble(*[
-            Content.styled(f" {text} ", f"bold {MUTED}")
-            .stylize(f"@click=app.pane_do({self.id!r}, {name!r})") for name, text, _ in self.controls()])
+            Content.styled(f" {text} ", f"bold {MUTED}").stylize(f"@click={self.click(name)}")
+            for name, text, _ in self.controls()])
         title = self.title_main + (Content("  ") + self.title_note if self.title_note.cell_length else Content(""))
         # The frame keeps "╭─ " and " ─╮" at its ends; a space each side of the line
         room = width - 6 - controls.cell_length - 2
@@ -379,11 +547,6 @@ class Pane(RichLog):
     def on_leave(self, event):
         self.tooltip = None
 
-    def on_click(self, event):
-        # A double click on the frame's top, as on a window's title bar
-        if event.chain == 2 and event.y == 0:
-            self.app.pane_maximize(self)
-
     # --- Keys ---
 
     def on_key(self, event):
@@ -392,18 +555,8 @@ class Pane(RichLog):
             event.stop()
             self.do(LETTERS[character.lower()])
 
-    def action_enter(self):
-        self.do("max")
-
-    def action_restore(self):
-        # As for anything maximized in a Textual app, Esc puts it back
-        if self.maximized():
-            self.app.pane_maximize(self, False)
-
     def do(self, name):
-        if name == "max":
-            self.app.pane_maximize(self)
-        elif name == "save":
+        if name == "save":
             self.save()
         elif name == "back":
             self.app.pane_back()
@@ -450,6 +603,14 @@ class LogPane(Pane):
 
     def slug(self):
         return f"{self.item.name}_log" if self.item else "log"
+
+    def on_key(self, event):
+        # A number goes to that entry of the list, as from the menu bar
+        if event.character and event.character.isdigit():
+            event.stop()
+            self.app.type_in_list(event.character)
+            return
+        super().on_key(event)
 
     def show(self, item, about, has_log, force=False):
         """Shows an entry: its log when has_log, else the lines in about.
@@ -524,37 +685,15 @@ class LogPane(Pane):
             self.output(run)
 
 
-class ActionPane(Pane):
-    """What was done to the highlighted entry since the menu opened, one run
-    after the other: its title and when, the commands and what they printed,
-    and how it ended"""
+class Runs:
+    """What the menu runs for its entries, and ran since it opened: each
+    entry's Runs, oldest first, with what they printed. changed(run) is
+    called in the menu when one printed more or ended, for its notification."""
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, app, changed=None):
+        self.app = app
         self.runs = {}     # an entry's path → its Runs, oldest first
-        self.item = None
-        self.hint = ""     # where to find what you can do with the entry, for when nothing was done yet
-
-    def slug(self):
-        return f"{self.item.name}_actions" if self.item else "actions"
-
-    def show(self, item, hint=""):
-        self.item, self.hint = item, hint
-        self.retitle()
-        self.redraw()
-
-    def retitle(self):
-        if not self.item:
-            return
-        run = self.latest(self.item.path)
-        if run and run.busy:
-            note = Content.styled(f"◐ {run.title}  {elapsed(time.monotonic() - run.started)}", "$warning")
-        elif run:
-            note = Content.styled(f"✗ {run.title} failed" if run.code else f"✓ {run.title}",
-                                  "$error" if run.code else MUTED)
-        else:
-            note = None
-        self.set_title(f"What was done to {self.item.name}", note)
+        self.changed = changed
 
     def latest(self, path):
         runs = self.runs.get(path)
@@ -564,62 +703,54 @@ class ActionPane(Pane):
         run = self.latest(path)
         return bool(run and run.busy)
 
-    def source(self):
-        if not self.item:
-            return [], None
-        runs = self.runs.get(self.item.path, [])
-        if not runs:
-            return [(Content.styled(f"Nothing done to {self.item.name} since the menu opened."
-                                    + (f" {self.hint}" if self.hint else ""), MUTED), None)], None
-        lines = []
-        for n, run in enumerate(runs):
-            if n:
-                lines.append(("", None))
-            lines += list(run.shown)
-        latest = runs[-1]
-        return lines, latest.live if latest.busy else None
-
     def start(self, item, title, steps, on_done=None, keep_going=False):
-        """Runs steps for an entry, shown here while it's the one in view.
-        Returns the Run."""
+        """Runs steps for an entry, in a thread. Returns the Run."""
         run = Run(item.path, title, steps, on_done, keep_going)
-        run.columns = max(40, (self.scrollable_content_region.width or 100))
+        run.columns = COLUMNS
         run.pending.append((f"── {title} · {time.strftime('%H:%M:%S')} ──", f"bold {MUTED}"))
         self.runs.setdefault(item.path, []).append(run)
-        if self.item and self.item.path == item.path:
-            self.redraw()
-        self.retitle()
         launch(self.app, run, self.output, self.ended)
         return run
 
-    def shows(self, run):
-        return self.item is not None and run.path == self.item.path
-
     def output(self, run):
-        if self.shows(run):
-            self.drop_live()
+        """What a run's thread read, into what it printed"""
         while run.pending:
             text, style = run.pending.popleft()
             run.lines.append(ANSI.sub("", text))
             run.shown.append((text, style))
-            if self.shows(run):
-                self.put(text, style)
-        if self.shows(run) and run is self.latest(run.path):
-            self.show_live(run.live)
+            run.total += 1
+        if self.changed:
+            self.changed(run)
 
     def ended(self, run):
-        seconds = took(time.monotonic() - run.started)
+        run.finished, run.finished_wall = time.monotonic(), time.time()
+        seconds = took(run.finished - run.started)
         if run.stopping and run.code:
             run.pending.append(("── stopped ──", MUTED))
         elif run.code:
-            run.pending.append((f"── failed after {seconds} (exit code {run.code}) ✗ ──", "$error"))
+            run.pending.append((f"── failed after {seconds} (exit code {run.code}) × ──", "$error"))
         else:
-            run.pending.append((f"── done in {seconds} ✓ ──", "$success"))
-        self.output(run)
+            run.pending.append((f"── done in {seconds} √ ──", "$success"))
         run.busy = False
-        self.retitle()
+        self.output(run)
         if run.on_done:
             run.on_done(run.code)
+        if self.changed:
+            self.changed(run)
+
+    def answer(self, run, yes):
+        """Your answer to what a run's script asks: into its log, under the
+        question, and back to the script, which goes on"""
+        if not run.question or not run.asker:
+            return
+        question, said = run.question, "Yes, " + run.question[1] if yes else "No, " + run.question[2]
+        run.question = None
+        run.pending.append((f"? {question[0]}  {said}", "bold $primary"))
+        try:
+            run.asker.sendall(b"y\n" if yes else b"n\n")
+        except OSError:
+            pass
+        self.output(run)
 
     def note(self, path, text, style="$success"):
         """A line of the menu's own under an entry's latest run, such as when
@@ -629,12 +760,6 @@ class ActionPane(Pane):
             run.pending.append((text, style))
             self.output(run)
 
-    def stop(self):
-        run = self.latest(self.item.path) if self.item else None
-        if run and run.busy:
-            # Stopping these halfway can leave things half done: ask first
-            self.app.stop_run(run, self.item, risky=run.title in RISKY)
-
     def stop_all(self):
         """Ends everything still running, so the menu can quit"""
         for runs in self.runs.values():
@@ -643,7 +768,7 @@ class ActionPane(Pane):
                 send(run, signal.SIGTERM)
 
     def tick(self):
-        # The time in the title while something runs, and what a quiet command wrote since the last look
-        if self.item and self.busy(self.item.path):
-            self.retitle()
-            self.output(self.latest(self.item.path))
+        # What a quiet command wrote since the last look
+        for runs in self.runs.values():
+            if runs and runs[-1].busy:
+                self.output(runs[-1])

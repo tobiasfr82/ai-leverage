@@ -10,19 +10,20 @@ Each menu has a letter, underlined in its title: Alt and that letter opens
 it from anywhere (Alt+S opens Stack). So does a click on its title, and F10
 opens the first one. The bar also takes the focus like the other areas,
 with Tab, shift+Tab or ↑ from the top of the list: ← → choose a menu, its
-letter or Enter or ↓ opens it, and Esc or b goes back to the list.
+letter or Enter or ↓ opens it, and Esc goes back to the list.
 
 In the menus, a letter does what it stands for at once, as in a desktop
-app's menus; that's the standard everywhere in the menu (tui.py). Each entry has a letter of its own,
-bold and underlined in it, unique in that menu only: typing it does the
-entry, so Alt+S, u opens Updates, and the letter of an entry with ▸ goes
-into the menu beside it: Alt+M, d, h opens huggingface. b goes one step
-back: out of a menu beside, or the menu closes. ↑↓ and the mouse only move,
-and Enter or a click does the highlighted entry; ← → go to the menu next to
-it, and the mouse on another title opens that one. An entry with ▸ shows its
-menu beside it as soon as it's highlighted, as in Norton Commander: → or
-Enter goes into it, ← or Esc back out. Esc or a click beside it closes the
-menu. The line at the bottom says what the highlighted entry does.
+app's menus; that's the standard everywhere in the menu (tui.py). Each
+entry has a letter of its own, bold and underlined in it, unique in that
+menu only: typing it does the entry, so Alt+S, u opens Updates, and the
+letter of an entry with ▸ goes into the menu beside it: Alt+M, d, h opens
+huggingface. ↑↓ and the mouse only move, and Enter or a click does the
+highlighted entry; ← → go to the menu next to it, and the mouse on another
+title opens that one. An entry with ▸ shows its menu beside it as soon as
+it's highlighted, as in Norton Commander: → or Enter goes into it, ← back
+out. Esc goes one step back: out of a menu beside, or the menu closes; so
+does a click beside it. The line at the bottom says what the highlighted
+entry does, and its letter.
 
 (The main list is the one exception: a number there only moves, since
 that's how you look at an entry's log; Enter opens it.)
@@ -47,7 +48,6 @@ OPEN = "bold reverse $text-accent"  # the title of the open menu
 HOVER = "on $primary 30%"            # what the mouse is on
 CURSOR = "bold on $primary 38%"      # the chosen title while the bar has the focus, like the list's highlight
 MORE = "▸"                           # an entry that opens a menu of its own (one cell wide in every terminal)
-BACK = "b"                           # b goes back, so no entry gets it
 
 
 @dataclass
@@ -66,8 +66,8 @@ class Entry:
 
 def letters_for(labels, taken=()):
     """A letter for each label, unique among them: the label's first letter
-    that's still free, never b; "" when none is"""
-    used, found = set(taken) | {BACK}, []
+    that's still free; "" when none is"""
+    used, found = set(taken), []
     for label in labels:
         letter = next((c for c in label.lower() if "a" <= c <= "z" and c not in used), "")
         used.add(letter)
@@ -230,11 +230,7 @@ class MenuBar(Static):
         character = event.character
         if event.key.startswith("alt+") or not character:
             return
-        if character == BACK:
-            # b: back to the list, at once, as letters work on the menu bar
-            event.stop()
-            self.action_leave()
-        elif character.isdigit():
+        if character.isdigit():
             event.stop()
             self.app.type_in_list(character)
         elif self.menu_for(character.lower()):
@@ -268,6 +264,7 @@ class MenuDropdown(ModalScreen):
         self.entries = []     # the open menu's entries
         self.inner = []       # the entries of the menu beside it, while one shows
         self.beside = None    # the index of the entry whose menu shows beside it
+        self.place = (0, 0, 0)  # where the open menu's box goes: left, top, width
 
     def compose(self):
         with Vertical(id="dropdown", classes="menu-box"):
@@ -312,6 +309,7 @@ class MenuDropdown(ModalScreen):
         box = self.query_one("#dropdown")
         box.styles.width = width
         left = max(0, min(self.bar.start_of(menu_id), self.size.width - width))
+        self.place = (left, self.bar.below(), width)
         box.styles.offset = (left, self.bar.below())
         index = next((i for i, entry in enumerate(self.entries) if highlight and entry.action == highlight), None)
         option = listing.keys.get(keyed(self.entries)[index][0]) if index is not None else None
@@ -325,7 +323,8 @@ class MenuDropdown(ModalScreen):
         if not option:
             return None
         entries = self.inner if listing.id == "submenu-list" else self.entries
-        return entries[int(option.id[1:])]
+        index = int(option.id[1:])
+        return entries[index] if index < len(entries) else None
 
     def show_beside(self, index):
         """Shows the menu of the entry at index beside this one, without going into it"""
@@ -334,11 +333,13 @@ class MenuDropdown(ModalScreen):
         self.beside = index
         submenu = self.query_one("#submenu")
         width = self.fill(self.query_one("#submenu-list", DropList), self.inner)
-        box = self.query_one("#dropdown")
         submenu.styles.width = width
-        # Its first entry level with the entry it belongs to
-        left = min(box.region.x + box.region.width, self.size.width - width)
-        top = box.region.y + index
+        # Its first entry level with the entry it belongs to. Where show() put
+        # the box, not where it was last drawn: after ← or → that's still the
+        # menu before, as wide as that one was
+        box_left, box_top, box_width = self.place
+        left = min(box_left + box_width, self.size.width - width)
+        top = box_top + index
         submenu.styles.offset = (max(0, left), max(0, top))
         submenu.display = True
         self.query_one("#submenu-list", DropList).highlighted = None
@@ -350,12 +351,21 @@ class MenuDropdown(ModalScreen):
             self.query_one("#dropdown-list", DropList).focus()
             submenu.display = False
         self.beside, self.inner = None, []
+        # Its entries go with it, so nothing reads one that isn't there any more
+        self.query_one("#submenu-list", DropList).fill([], keep=False)
 
     def show_hint(self):
-        listing = self.focused if isinstance(self.focused, DropList) else self.query_one("#dropdown-list", DropList)
+        # The menu beside only while it shows: the focus moves a moment after it goes
+        listing = self.query_one("#submenu-list" if self.in_beside() else "#dropdown-list", DropList)
         entry = self.entry_of(listing)
         if entry:
-            self.app.menu_hint(entry)
+            entries = self.inner if listing.id == "submenu-list" else self.entries
+            letter = next((key for key, known in keyed(entries) if known is entry), "")
+            self.app.menu_hint(entry, letter)
+
+    def refused(self, reason):
+        """A letter of an entry that can't be done now: why, in the line at the bottom"""
+        self.app.menu_refused(reason)
 
     # --- Moving around ---
 
@@ -411,7 +421,8 @@ class MenuDropdown(ModalScreen):
         self.show_hint()
 
     def in_beside(self):
-        return self.focused is not None and self.focused.id == "submenu-list"
+        """Whether the menu beside is the one in use: it shows, and has the focus"""
+        return self.beside is not None and self.focused is not None and self.focused.id == "submenu-list"
 
     def action_arrow(self, direction):
         if direction == "left":
@@ -442,7 +453,7 @@ class MenuDropdown(ModalScreen):
 
     def on_key(self, event):
         """What the lists left alone: a number closes the menu and goes to
-        that entry of the list, and b goes one step back"""
+        that entry of the list"""
         character = event.character
         if event.key.startswith("alt+") or not character or len(character) != 1:
             return
@@ -450,9 +461,6 @@ class MenuDropdown(ModalScreen):
             event.stop()
             self.dismiss(None)
             self.app.call_later(self.app.type_in_list, character)
-        elif character.lower() == BACK:
-            event.stop()
-            self.step_back()
 
     # --- The mouse ---
 

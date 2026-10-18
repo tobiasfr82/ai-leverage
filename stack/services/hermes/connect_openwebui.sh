@@ -1,8 +1,10 @@
 #!/bin/bash
 # ai-leverage/stack/services/hermes/connect_openwebui.sh
-# Lets Open WebUI use Hermes as a model. Hermes creates a random API key on its
-# first start; this copies it into Open WebUI's .env (git-ignored), where
-# stack/services/openwebui/compose.yaml picks it up.
+# Lets Open WebUI use Hermes as a model, by copying Hermes's API key into
+# Open WebUI's .env.
+#
+# Hermes creates a random API key on its first start; Open WebUI's .env is
+# git-ignored, and stack/services/openwebui/compose.yaml picks the key up.
 #
 # menu: console   (manage.sh's menu shows what it prints without leaving the menu: it never asks anything)
 
@@ -19,7 +21,7 @@ if [ -r "$HERMES_ENV" ]; then
 elif sudo test -f "$HERMES_ENV"; then
   key=$(sudo grep -m1 '^API_SERVER_KEY=' "$HERMES_ENV")
 else
-  echo "Hermes has not started yet. Start it first: manage.sh -> hermes -> Start."
+  echo "Hermes has not started yet. Start it first: in the menu, hermes → Start."
   exit 1
 fi
 key=$(echo "${key#API_SERVER_KEY=}" | tr -d "\"'\r")
@@ -48,6 +50,6 @@ if [ -e "$OWUI_DIR/data/webui.db" ]; then
   echo "     Key: $key"
   echo "  4. Save. Hermes appears in the model list as \"hermes-agent\"."
 else
-  echo "Start Open WebUI (manage.sh -> openwebui -> Start)."
+  echo "Start Open WebUI (in the menu: openwebui → Start)."
   echo "Hermes appears in its model list as \"hermes-agent\"."
 fi

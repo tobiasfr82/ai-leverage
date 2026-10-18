@@ -1,11 +1,13 @@
 #!/bin/bash
 # ai-leverage/apps/vscode/backup_settings.sh
-# Saves your VS Code setup into apps/vscode/data/backups/ (git-ignored), one
-# dated file per run: everything in ~/.config/Code/User (settings, keybindings,
-# snippets, profiles, and what VS Code remembers per workspace) and the list of
-# installed extensions. restore_settings.sh puts a backup back.
-# Uninstalling VS Code leaves these settings alone anyway. A backup is for a
-# fresh start, or to take your setup to another PC.
+# Saves your VS Code settings and the list of your extensions into
+# apps/vscode/data/backups/, one dated file per run.
+#
+# It takes everything in ~/.config/Code/User (settings, keybindings, snippets,
+# profiles, and what VS Code remembers per workspace); data/ is git-ignored.
+# restore_settings.sh puts a backup back. Uninstalling VS Code leaves these
+# settings alone anyway: a backup is for a fresh start, or to take your setup
+# to another PC.
 #
 # menu: console   (manage.sh's menu shows what it prints without leaving the menu: it never asks anything)
 
@@ -18,7 +20,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 if [ ! -d "$CODE_DIR/User" ]; then
-    echo -e "${RED}✗ There are no VS Code settings in ~/.config/Code/User to back up.${NC}"
+    echo -e "${RED}× There are no VS Code settings in ~/.config/Code/User to back up.${NC}"
     exit 1
 fi
 
@@ -38,7 +40,7 @@ fi
 
 if ! tar -czf "$file" "${parts[@]}"; then
     rm -f "$file"
-    echo -e "${RED}✗ The backup failed. See the messages above.${NC}"
+    echo -e "${RED}× The backup failed. See the messages above.${NC}"
     exit 1
 fi
-echo -e "${GREEN}✓ Saved to apps/vscode/data/backups/$(basename "$file") ($(du -m "$file" | cut -f1) MB)${NC}"
+echo -e "${GREEN}√ Saved to apps/vscode/data/backups/$(basename "$file") ($(du -m "$file" | cut -f1) MB)${NC}"

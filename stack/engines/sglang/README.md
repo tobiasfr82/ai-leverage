@@ -6,8 +6,8 @@ the shared `models/huggingface` folder. On this PC it answers at
 
 ## First start
 
-1. Download models with **Models › Downloaders › huggingface → sync_models**.
-2. Run **engines → sglang → set_model** and pick one. It saves your choice in `.env`,
+1. Download models with **Models › Downloaders › Huggingface → Sync models**.
+2. Run **sglang → Set model** and pick one. It saves your choice in `.env`,
    creates the admin key (see below) and offers to start SGLang.
 3. Follow the start in **sglang → View logs**. It is ready when the log says
    `The server is fired up and ready to roll!`
@@ -50,7 +50,7 @@ new releases, so this engine gets less freedom than the others:
 - **It only runs models you already downloaded.** It never goes online for a model, and it
   sees `models/huggingface` read-only, so it cannot change or delete anything in it. vLLM
   is locked the same way. **set_model** marks a download that lacks files; run
-  **huggingface → sync_models** to fetch them.
+  **Models › Downloaders › Huggingface → Sync models** to fetch them.
 - **Only this PC and the stack's containers can reach it** (port on `127.0.0.1`), like the
   other engines.
 - **Its management functions need the admin key** that `set_model` saved in `.env`: swapping

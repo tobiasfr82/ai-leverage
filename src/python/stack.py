@@ -169,8 +169,9 @@ def list_scripts(path):
                   and os.access(e.path, os.X_OK))
 
 
-# The line in a script's top comment that lets the menu show what it prints
-# in the pane under the log: it only prints, and never asks anything
+# The line in a script's top comment that lets the menu run it with a
+# notification, whose log shows what it prints: it only prints, and asks
+# nothing but yes/no questions, through src/bash/ask.sh
 CONSOLE_MARK = re.compile(r"#\s*menu:\s*console\b")
 
 
@@ -184,9 +185,10 @@ def head(path, lines=40):
 
 
 def runs_in_console(path):
-    """Whether a script says the menu can show what it prints in the pane
-    under the log, with a line "# menu: console" in the comment at its top. Without it, the menu steps
-    aside and runs it in the plain terminal, where it can ask things."""
+    """Whether a script says the menu can run it with a notification, whose
+    log shows what it prints, with a line "# menu: console" in the comment at its top. Such a script asks
+    only yes/no, through src/bash/ask.sh. Without it, the menu steps aside and runs it in the plain terminal,
+    where it can ask anything."""
     for line in head(path)[1:]:
         if not line.startswith("#"):
             return False
@@ -465,6 +467,13 @@ def sentences(text):
     elif text.endswith(":"):
         text = text[:-1] + "."
     return text
+
+
+def first_sentence(text):
+    """The first sentence of a text, such as a README's first paragraph, for a
+    line that has room for one"""
+    match = re.search(r"(?<=[.!?])\s+(?=[A-Z`\[])", text)
+    return text[:match.start()] if match else text
 
 
 def readme_intro(path):

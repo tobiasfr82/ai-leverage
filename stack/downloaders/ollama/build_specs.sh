@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # ICM MULTI-MODEL SPECIFICATION COMPILER
-# Builds a custom Ollama model from every specs/*.model file, in the shared
-# models/ollama folder, with a temporary Ollama (temporary_ollama.sh).
+# Builds a custom Ollama model from every specs/*.model file, into the shared
+# models/ollama folder.
+#
+# It uses a temporary Ollama of its own (temporary_ollama.sh).
 # Usage: ./build_specs.sh [--dry-run | -d | --list]
 #   --dry-run  show what would be built, change nothing
 #   --list     print the model names the specs produce and the base models they
@@ -110,7 +112,9 @@ for SPEC_PATH in "${SPEC_FILES[@]}"; do
     echo "Validating baseline dependencies inside container for: $BASE_DEPENDENCY"
 
     # Query container internal storage
-    if ! ollama_cmd list | grep -q "^${BASE_DEPENDENCY}\s"; then
+    # The whole list first: with pipefail, grep -q stopping early could make
+    # the list command fail, and the base model look absent
+    if ! grep -q "^${BASE_DEPENDENCY}\s" <<< "$(ollama_cmd list)"; then
         echo "Base weights absent from container environment. Running fetch routine..."
         if ! ollama_cmd pull "$BASE_DEPENDENCY"; then
             echo "Network Failure: Unable to fetch weights for '$BASE_DEPENDENCY' inside container. Skipping target."

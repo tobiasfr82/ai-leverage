@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """ai-leverage/src/python/fit_screen.py
 
-The model fit screen (manage.sh -> f): which downloaded models fit on this
-PC for what you need, biggest first, and for each one, every way to run it,
-where the memory goes, and what to do to use it.
+The model fit screen (Models › Tuning › Fit in the menu): which downloaded
+models fit on this PC for what you need, biggest first, and for each one,
+every way to run it, where the memory goes, and what to do to use it. Esc
+goes back, as everywhere in the menu.
 
 What you need is two choices at the top: how much context, and whether the
 PC's memory may help (bigger models, slower). The list answers for that
@@ -355,7 +356,7 @@ class Screen:
         group, route, way = self.rows[index]
         meets = index < len(self.meets)
         chosen = index == self.selected and self.view == "list"
-        line = Line(("  ▶ " if chosen else "    ", "cyan bold"))
+        line = Line(("  ► " if chosen else "    ", "cyan bold"))
         line.add(f"{index + 1:>2}  " if meets else "    ", "grey")
         name = shorten(group.name, name_width - 1)
         line.add(f"{name:<{name_width}}", ("bold" if chosen else "") if meets else "grey")
@@ -431,15 +432,15 @@ class Screen:
                       ("█", "magenta"), (words[2], ""), ("·", "grey"), (words[3], ""))
         if self.typing is not None:
             keys = Line(("  Context size in tokens, e.g. 200k: ", "bold"), (self.typing + "▏", "cyan"),
-                        ("    Enter to add it, b to cancel", "grey"))
+                        ("    Enter to add it, Esc to cancel", "grey"))
         elif self.message:
             keys = Line(("  " + self.message, "yellow"))
         else:
             keys = Line((first_fitting([
-                "  ↑↓ choose   Enter details   ← → context   p PC memory   c conversations   s sort   "
-                "o own size   b back",
-                "  ↑↓ choose  Enter details  ← → context  p PC memory  c chats  s sort  o own  b back",
-                "  ↑↓ Enter  ← → context  p PC memory  c chats  s sort  b back"], width), "grey"))
+                "  ↑↓ move   Enter details   ← → context   p PC memory   c conversations   s sort   "
+                "o own size   Esc back to the menu",
+                "  ↑↓ move  Enter details  ← → context  p PC memory  c chats  s sort  o own  Esc back",
+                "  ↑↓ Enter  ← → context  p PC memory  c chats  s sort  Esc back"], width), "grey"))
         note = Line((first_fitting([
             "  Biggest first is a rough guide: within a family, more parameters mean better answers. "
             "Estimates, not measurements.",
@@ -491,7 +492,7 @@ class Screen:
             plan = route.plan
             chosen = index == self.route
             way = plan.way(need, self.goal.pc_memory)
-            line = Line(("  ▶ " if chosen else "    ", "cyan bold"))
+            line = Line(("  ► " if chosen else "    ", "cyan bold"))
             size = hardware.gb(route.file.weights + route.file.vision_file)
             if route.downloaded:
                 what = f"{shorten(route.file.name, what_width - len(size) - 4)} · {size}"
@@ -514,8 +515,8 @@ class Screen:
             lines.append(Line())
             lines += self.how_to_use(group, route, width)
         footer = [rule(width, "═"), Line((first_fitting([
-            "  ↑↓ choose a way   ← → context   p PC memory   c conversations   b back to the list",
-            "  ↑↓ choose  ← → context  p PC memory  c chats  b back"], width), "grey"))]
+            "  ↑↓ move between the ways   ← → context   p PC memory   c conversations   Esc back to the list",
+            "  ↑↓ move  ← → context  p PC memory  c chats  Esc back"], width), "grey"))]
         lines = lines[: max(0, height - len(footer))]
         lines += [Line()] * (height - len(footer) - len(lines))
         return lines + footer
@@ -591,9 +592,9 @@ class Screen:
                      if engine.name == "ollama" else
                      "stack/downloaders/huggingface/models.txt as organization/model-GGUF:" + f.quant)
             text.append(f"This size isn't downloaded, and it only exists if someone publishes it. If you find a "
-                        f"{f.quant} of {group.name}, add it to {where}, then run sync_models.")
+                        f"{f.quant} of {group.name}, add it to {where}, then run Sync models.")
         elif engine.name in ("vllm", "sglang"):
-            text.append(f"manage.sh → {engine.name} → set_model: pick {f.name}, then Start. "
+            text.append(f"In the menu: {engine.name} → Set model, pick {f.name}, then Start. "
                         f"{engine.label} makes the context as long as fits by itself.")
             if engine.name == "sglang" and not engine.settings()["fraction"]:
                 held = engine.cuda_total * (1 - engine.fraction(f))
@@ -687,14 +688,14 @@ class Screen:
             if key == "enter":
                 text, self.typing = self.typing, None
                 self.own_size(text)
-            elif key in ("b", "esc"):
+            elif key == "esc":
                 self.typing = None
             elif key == "backspace":
                 self.typing = self.typing[:-1]
             elif len(key) == 1 and (key.isdigit() or key in "kKmM.,"):
                 self.typing += key
             return True
-        if key == "b":
+        if key == "esc":
             if self.view == "detail":
                 self.view = "list"
                 return True

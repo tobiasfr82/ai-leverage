@@ -11,5 +11,5 @@ edit it by hand just as well.
 
 | File | What it's for |
 |------|---------------|
-| `model-fit.conf` | What the model fit (**f** in `manage.sh`) plans for: the context you need, whether the PC's memory may help, how many conversations run at once |
+| `model-fit.conf` | What the model fit (**Models › Tuning › Fit** in the menu) plans for: the context you need, whether the PC's memory may help, how many conversations run at once |
 | `menu.conf` | How `manage.sh`'s menu looks: its colour theme, which the menu remembers when you pick one (**ctrl+p**, then **Theme**) |

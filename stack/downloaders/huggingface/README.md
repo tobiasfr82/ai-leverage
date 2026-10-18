@@ -1,13 +1,13 @@
 # Hugging Face
 
 Downloads the models vLLM, SGLang and llama.cpp run into the shared `models/huggingface`
-folder at the top of the repo. All three engines read that same folder, and each one only
-picks out the kind of model it can run:
+folder. All three engines read that same folder, and each one only picks out the kind of
+model it can run:
 
 - **vLLM and SGLang** run models in `.safetensors` format. A model downloaded for them
-  shows up in their `set_model.sh` (menu: **vllm → set_model** and **sglang → set_model**).
+  shows up in their `set_model.sh` (menu: **vllm → Set model** and **sglang → Set model**).
 - **llama.cpp** runs models in GGUF format. A model downloaded for it shows up in Open WebUI
-  and in **llamacpp → list_models**, after a Restart of llama.cpp.
+  and in **llamacpp → List models**, after a Restart of llama.cpp.
 
 | Script             | What it does                                                   |
 | ------------------ | -------------------------------------------------------------- |

@@ -18,7 +18,7 @@ Which one to use:
 - **llama.cpp** for models bigger than the GPU: what doesn't fit stays in the PC's memory.
   It switches models like Ollama, from Open WebUI's model list.
 
-**f** in the main menu shows, for the context you need, which of your models manage it and
+**Models › Tuning › Fit** shows, for the context you need, which of your models manage it and
 which engine runs each one best on this PC.
 
 The engines share the GPU. vLLM and SGLang each claim most of its memory when they start,
@@ -30,7 +30,7 @@ minutes without a chat; see [Hardware](../../README.md#-hardware).
 
 All three read `models/huggingface` read-only and never go online, so they can't change
 your downloads and every file in there stays yours. In exchange, a model only runs once
-**Models › Downloaders › huggingface → sync_models** has fetched all of it. Each one picks out
+**Models › Downloaders › Huggingface → Sync models** has fetched all of it. Each one picks out
 the kind of model it can run, so they share the folder without seeing each other's models.
 
 - vLLM's and SGLang's **set_model** shows what to do: it lists models from `models.txt` that

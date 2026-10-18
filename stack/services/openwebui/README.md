@@ -14,10 +14,10 @@ from the environment variables in `compose.yaml`. They are pre-set to:
 - also list SGLang's model while SGLang runs (`http://sglang:30000/v1`)
 - also list llama.cpp's GGUF models while llama.cpp runs (`http://llamacpp:8080/v1`)
 - also list Hermes as `hermes-agent` (`http://hermes:8642/v1`), if
-  **hermes → connect_openwebui** has saved Hermes's key before this first start
+  **hermes → Connect openwebui** has saved Hermes's key before this first start
 - read uploaded documents with Docling (`http://docling:5001`)
 - search documents with Ollama embeddings (`rag/qwen3-embedding:8b`, which **Models ›
-  Downloaders › ollama → sync_models** builds from `stack/downloaders/ollama/specs/`)
+  Downloaders › Ollama → Sync models** builds from `stack/downloaders/ollama/specs/`)
 
 The only manual step is creating your admin account on the first visit.
 
@@ -41,7 +41,7 @@ Installs from before the shared network reach Ollama and Docling through
 | Connections → OpenAI API (optional)     | `http://vllm:8000/v1`, no key, for vLLM  |
 | Connections → OpenAI API (optional)     | `http://sglang:30000/v1`, no key, for SGLang |
 | Connections → OpenAI API (optional)     | `http://llamacpp:8080/v1`, no key, for llama.cpp |
-| Connections → OpenAI API (optional)     | `http://hermes:8642/v1` for Hermes, key from **hermes → connect_openwebui** |
+| Connections → OpenAI API (optional)     | `http://hermes:8642/v1` for Hermes, key from **hermes → Connect openwebui** |
 | Documents → Content Extraction Engine   | Docling, server URL `http://docling:5001` |
 | Documents → Embedding (Ollama) URL      | `http://ollama:11434`                    |
 | Documents → Embedding model             | `rag/qwen3-embedding:8b`                 |

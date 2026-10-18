@@ -7,14 +7,17 @@
 # The engines never go online, so the list also shows what a download is
 # missing, and which models in the downloader's models.txt aren't here yet.
 # Next to each model: how much context it gets on this PC with the engine's
-# settings, estimated by src/python/model_fit.py (f in manage.sh's main menu
-# compares all engines).
+# settings, estimated by src/python/model_fit.py (Models › Tuning › Fit in the
+# menu compares all engines).
 # Usage: pick-huggingface-model.sh <engine name to show, e.g. vLLM>
 
 ENGINE_NAME="${1:?usage: pick-huggingface-model.sh <engine name>}"
 # The engine's folder, as the menu names it
 ENGINE_FOLDER="$(basename "$PWD")"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# read_choice: a choice typed and ended with Enter, or Esc to go back
+# shellcheck source=read-choice.sh
+. "$SCRIPT_DIR/read-choice.sh"
 
 # Configuration Paths
 ENV_FILE=".env"
@@ -121,7 +124,7 @@ fi
 
 if [ ${#models[@]} -eq 0 ]; then
     echo "No models downloaded yet. Add some to stack/downloaders/huggingface/models.txt"
-    echo "and run its sync_models (manage.sh -> huggingface -> sync_models) first."
+    echo "and run Models › Downloaders › Huggingface → Sync models in the menu first."
     exit 1
 fi
 
@@ -130,7 +133,7 @@ if [ ${#not_downloaded[@]} -gt 0 ] || [[ "${labels[*]}" == *"(missing: "* ]]; th
         echo -e "\033[1;33mNot downloaded yet:\033[0m $model"
     done
     echo "$ENGINE_NAME only runs what is downloaded. To fetch what's not downloaded or"
-    echo "marked missing, run manage.sh -> huggingface -> sync_models. If files stay"
+    echo "marked missing, run Models › Downloaders › Huggingface → Sync models. If files stay"
     echo "missing, check HF_INCLUDE in stack/downloaders/huggingface/.env."
     echo "------------------------------------------"
 fi
@@ -138,7 +141,7 @@ fi
 # --- 3. SELECTION MENU ---
 # One model per line, like the menus in manage.sh
 echo "Please select a model to deploy to $ENGINE_NAME. Next to each: the context"
-echo "it gets on this PC, an estimate (f in the main menu compares engines)."
+echo "it gets on this PC, an estimate (Models › Tuning › Fit compares engines)."
 echo
 for i in "${!labels[@]}"; do
     printf '%2d) %s\n' $((i + 1)) "${labels[$i]}"
@@ -147,14 +150,14 @@ for note in "${fit_notes[@]}"; do
     echo "$note" | fold -s -w 78
 done
 echo "------------------------------------------"
-echo " b) Go back"
+echo "Esc) Go back"
 echo "------------------------------------------"
 
 SELECTED_MODEL=""
 while [ -z "$SELECTED_MODEL" ]; do
-    # Ctrl+D goes back too
-    read -p "Selection: " -r choice || { echo; exit 0; }
-    [[ "$choice" =~ ^[Bb]$ ]] && exit 0
+    # Esc goes back, and so does Ctrl+D
+    read_choice "Selection: " || exit 0
+    choice=$REPLY
     if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt ${#models[@]} ]; then
         echo "Invalid choice. Please try again."
         continue
@@ -163,13 +166,13 @@ while [ -z "$SELECTED_MODEL" ]; do
     if [ -n "$missing" ]; then
         echo "This download is missing: $missing. $ENGINE_NAME can't run it properly."
         read -p "Choose it anyway? (y/N): " -r confirm
-        [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Pick another model, or b to go back."; continue; }
+        [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Pick another model, or Esc to go back."; continue; }
     fi
     fit=${fit_of[${models[$((choice - 1))]}]}
     if [[ "$fit" == "too big"* || "$fit" == "won't start"* || "$fit" == "needs "* || "$fit" == "no NVIDIA"* ]]; then
         echo "By the estimate it won't run here: $fit."
         read -p "Choose it anyway? (y/N): " -r confirm
-        [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Pick another model, or b to go back."; continue; }
+        [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Pick another model, or Esc to go back."; continue; }
     fi
     SELECTED_MODEL=${models[$((choice - 1))]}
 done
@@ -204,7 +207,7 @@ read -p "Start $ENGINE_NAME with this model now? (y/N): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     "$SCRIPT_DIR/docker-create-network.sh" && sudo docker compose up -d
-    echo "Loading a model takes a few minutes. Follow it in manage.sh -> $ENGINE_FOLDER -> View logs."
+    echo "Loading a model takes a few minutes. Its log shows in the menu when $ENGINE_FOLDER is highlighted."
 else
-    echo "Start $ENGINE_NAME (manage.sh -> $ENGINE_FOLDER -> Start) when ready."
+    echo "Start $ENGINE_NAME (in the menu: $ENGINE_FOLDER → Start) when ready."
 fi

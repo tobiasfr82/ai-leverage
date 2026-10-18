@@ -302,13 +302,14 @@ TOOLS  updated another way
   plus room for the conversation. **Models › Tuning › Fit** works that out for the models
   you have, below.
 - **Models › Tuning › Fit finds the best models for what you need.** At the top you choose how much context
-  you need, from 8k to the longest each model gets, and whether the PC's memory may help:
-  on the GPU alone is fast, and with the PC's memory, bigger models and longer context run,
-  slower. The list answers with the biggest models that manage it, each with the best way
-  to run it here. On a 32 GB RTX 5090, for 64k on the GPU alone:
+  you need, from 8k to the longest each model gets or a size of your own, whether the PC's
+  memory may help (on the GPU alone is fast; with the PC's memory, bigger models and longer
+  context run, slower), and how many conversations run at once. A click on a choice or its
+  key changes it. The list answers with the biggest models that manage it, each with the
+  best way to run it here. On a 32 GB RTX 5090, for 64k on the GPU alone:
 
   ```text
-  34 models hold 64k on the GPU alone. Biggest first.
+  34 models hold 64k on the GPU alone. Biggest first, a rough guide to quality.
 
         MODEL                         SIZE          8k   16k   32k   64k  128k  256k         HOW IT RUNS
      1  Qwen3.6-35B-A3B               35B MoE   ████████████████████████████████████   256k  Ollama · Q4_K_M
@@ -321,13 +322,16 @@ TOOLS  updated another way
   The bars show how far each model gets: green as the engine is set, yellow with 8-bit
   conversation memory (a setting that halves it, a little less precise), magenta with part
   of the model in the PC's memory. One model in several files, such as the AWQ download and
-  Ollama's `qwen3.8:27b`, is one line. Enter opens a model: every way to run it, where the
-  GPU's and the PC's memory goes, and what to do to use it. There, a line marked *not
-  downloaded* is the same model in another size, worked out from its parameters; it only
-  exists if someone publishes it. Biggest first is a rough guide, not a benchmark, and the
-  numbers are estimates, checked against real starts; the engine's log says what it really
-  got. Your choices are kept in `config/model-fit.conf`, and vLLM's and SGLang's
-  **Set model** and llama.cpp's **List models** use them for the estimate next to each model.
+  Ollama's `qwen3.8:27b`, is one line. The panel under the list shows the model the list
+  highlights: every way to run it, where the GPU's and the PC's memory goes, and what to do
+  to use it; → or Enter goes in, to look at each way, and Esc comes back. There, a line
+  marked *not downloaded* is the same model in another size, worked out from its
+  parameters; it only exists if someone publishes it. Biggest first is a rough guide, not a
+  benchmark, and the numbers are estimates, checked against real starts; the engine's log
+  says what it really got. Your choices are kept in `config/model-fit.conf`, and vLLM's and
+  SGLang's **Set model** and llama.cpp's **List models** use them for the estimate next to
+  each model. Fit runs on its own too: `python3 -I src/python/fit_screen.py` shows the same
+  screen in any terminal, and `--print` prints the list as text.
 - **vLLM and SGLang each claim most of the GPU's memory when they start** (vLLM 85%,
   SGLang what it works out for your card). Run only one of them, and stop it while you use
   Ollama's larger models or llama.cpp, or lower `VRAM_LIMIT` in its `.env`. llama.cpp takes

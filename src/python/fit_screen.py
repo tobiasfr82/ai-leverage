@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 """ai-leverage/src/python/fit_screen.py
 
-The model fit screen (Models › Tuning › Fit in the menu): which downloaded
-models fit on this PC for what you need, biggest first, and for each one,
-every way to run it, where the memory goes, and what to do to use it. Esc
-goes back, as everywhere in the menu.
+The model fit (Models › Tuning › Fit in the menu): which downloaded models
+fit on this PC for what you need, biggest first, and for each one, every way
+to run it, where the memory goes, and what to do to use it.
 
-What you need is two choices at the top: how much context, and whether the
-PC's memory may help (bigger models, slower). The list answers for that
-goal. The calculation is model_fit.py's; this only draws it, with plain
-terminal codes, and keeps your choices in config/model-fit.conf, where the
-engines' model lists find them too.
+What you need is chosen at the top: how much context, whether the PC's
+memory may help (bigger models, slower), how many conversations run at once,
+and the order. A click on a choice or its key changes it. The list under it
+answers for that goal, and the panel under the list shows the model the list
+highlights: → or Enter goes into it, to look at each way to run it, and Esc
+goes back. The calculation is model_fit.py's; this draws it, and keeps your
+choices in config/model-fit.conf, where the engines' model lists find them
+too.
+
+The menu opens it full screen. Typed in a terminal, it shows the same screen
+on its own, and Esc leaves it. It's drawn with Textual, from the menu's
+Python environment (src/python/.venv, which manage.sh sets up); started with
+another Python, such as python3, it switches to that one by itself.
 
 Usage: python3 -I fit_screen.py [--print]
   Full screen in a terminal. --print, or output that isn't a terminal,
@@ -19,108 +26,109 @@ Usage: python3 -I fit_screen.py [--print]
 
 import os
 import re
-import select
 import shutil
-import signal
+import subprocess
 import sys
-import termios
-import tty
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+VENV = os.path.join(HERE, ".venv")
+
+
+def use_menu_python():
+    """Starts this again with the menu's Python environment, which has
+    Textual, when another Python started it. The environment is set up
+    first, as manage.sh does, when it isn't there yet."""
+    try:
+        import textual  # noqa: F401
+        return
+    except ImportError:
+        pass
+    python = os.path.join(VENV, "bin", "python")
+    if os.path.realpath(sys.prefix) == os.path.realpath(VENV):
+        sys.exit("The menu's Python environment lacks Textual. ./manage.sh sets it up again.")
+    if not os.path.exists(python):
+        if not shutil.which("uv"):
+            sys.exit("This screen is drawn with Textual, which uv sets up. Run ./bootstrap.sh first.")
+        print("Setting up the menu's Python environment: uv downloads Textual, which draws this "
+              "(about 13 MB, once)...", file=sys.stderr)
+        if subprocess.call(["uv", "sync", "--project", HERE, "--locked", "--quiet"]) != 0:
+            sys.exit("Couldn't set up the menu's Python environment. See the messages above.")
+    os.execv(python, [python, "-I", os.path.abspath(__file__), *sys.argv[1:]])
+
+
+# Before Textual is imported: typed in a terminal, this may be the wrong Python
+if __name__ == "__main__":
+    use_menu_python()
+
+sys.path.insert(0, HERE)
+
+from textual import on, work  # noqa: E402
+from textual.app import App, ComposeResult  # noqa: E402
+from textual.binding import Binding  # noqa: E402
+from textual.containers import Vertical, VerticalScroll  # noqa: E402
+from textual.content import Content  # noqa: E402
+from textual.screen import ModalScreen, Screen  # noqa: E402
+from textual.widgets import Input, OptionList, Static  # noqa: E402
+
 import hardware  # noqa: E402
 import model_facts  # noqa: E402
 import model_fit as fit  # noqa: E402
+import tui  # noqa: E402
+from tui import MUTED, JumpList, keys_line  # noqa: E402
 
 K = fit.K
 
-# --- Drawing ---
+# --- Colours: the theme's, so they mean what they mean in the rest of the menu ---
 
-STYLES = {"bold": "1", "dim": "2", "rev": "7", "red": "31", "green": "32", "yellow": "33",
-          "blue": "34", "magenta": "35", "cyan": "36", "grey": "90"}
+GREEN, YELLOW = "$success", "$warning"
+MAGENTA = "#B762D0"                     # with the PC's memory: no theme colour is magenta in every theme
+HEAD = "bold $text-primary"             # a section's name, as the groups in the update overview
+CHOSEN = "bold reverse $text-primary"   # the choice that's made, and the context you need on the scale
+KEY = "bold $text-accent"               # a key, as in the line at the bottom
 
 # The parts of the memory bars: their colour, character and name
 PARTS = {
-    "model": ("cyan", "█", "model"),
-    "working": ("blue", "█", "working"),
-    "conversation": ("green", "█", "conversation"),
-    "room": ("green", "░", "room for more"),
-    "kept": ("grey", "▒", "kept free"),
-    "others": ("grey", "▓", "others"),
-    "free": ("grey", "░", "free"),
-    "tables": ("magenta", "▒", "lookup tables"),
-    "moved": ("magenta", "█", "from the GPU"),
+    "model": ("$primary", "█", "model"),
+    "working": ("$secondary", "█", "working"),
+    "conversation": (GREEN, "█", "conversation"),
+    "room": (GREEN, "░", "room for more"),
+    "kept": (MUTED, "▒", "kept free"),
+    "others": (MUTED, "▓", "others"),
+    "free": (MUTED, "░", "free"),
+    "tables": (MAGENTA, "▒", "lookup tables"),
+    "moved": (MAGENTA, "█", "from the GPU"),
 }
 
-USE_COLOUR = True
+
+def runs(cells):
+    """(character, style) cells as text, one piece per run of a style"""
+    pieces = []
+    for char, style in cells:
+        if pieces and pieces[-1][1] == style:
+            pieces[-1][0] += char
+        else:
+            pieces.append([char, style])
+    return Content.assemble(*[(text, style) for text, style in pieces])
 
 
-class Line:
-    """A line of text in pieces, each with its own style"""
-
-    def __init__(self, *pieces):
-        self.pieces = []
-        for piece in pieces:
-            self.add(*piece) if isinstance(piece, tuple) else self.add(piece)
-
-    def add(self, text, style=""):
-        if text:
-            self.pieces.append((text, style))
-        return self
-
-    def join(self, other):
-        """Adds another line's pieces to this one"""
-        self.pieces += other.pieces
-        return self
-
-    def pad(self, width):
-        """Fills it to this many columns"""
-        length = len(self)
-        if length < width:
-            self.add(" " * (width - length))
-        return self
-
-    def __len__(self):
-        return sum(len(text) for text, _ in self.pieces)
-
-    def draw(self, width):
-        out, left = [], width
-        for text, style in self.pieces:
-            if left <= 0:
-                break
-            text = text[:left]
-            left -= len(text)
-            if style and USE_COLOUR:
-                codes = ";".join(STYLES[s] for s in style.split())
-                out.append(f"\033[{codes}m{text}\033[0m")
-            else:
-                out.append(text)
-        return "".join(out)
-
-
-def rule(width, char="─", label=""):
-    if label:
-        return Line((char * 2 + " ", "grey"), (label, "grey"), (" " + char * max(0, width - len(label) - 4), "grey"))
-    return Line((char * width, "grey"))
+def rule(width, label):
+    return Content.styled(f"── {label} " + "─" * max(0, width - len(label) - 4), MUTED)
 
 
 def first_fitting(versions, width):
-    """The first of several versions of a line that fits the width, else the last"""
+    """The first of several versions of a text that fits the width, else the last"""
     for version in versions:
-        if len(version) <= width:
+        if version.cell_length <= width:
             return version
     return versions[-1]
 
 
-def wrap(text, width):
-    """Plain text in lines of at most this width"""
-    lines, line = [], ""
-    for word in text.split():
-        if line and len(line) + 1 + len(word) > width:
-            lines.append(line)
-            line = word
-        else:
-            line = f"{line} {word}" if line else word
-    return lines + ([line] if line else [])
+def shorten(text, width):
+    """Shortens a long name in the middle, so the columns line up"""
+    if len(text) <= width:
+        return text
+    keep = width - 1
+    return text[: keep // 2] + "…" + text[len(text) - (keep - keep // 2):]
 
 
 # --- The context bars: 4k to 256k, each doubling the same width ---
@@ -140,24 +148,24 @@ def column(tokens, width):
 def context_bar(plan, pc_memory, width, need=0, dim=False):
     """A bar of how far a plan gets: green as set, yellow with 8-bit memory,
     magenta with the PC's memory, then dots up to the model's own limit"""
-    line = Line()
-    ends = [(column(plan.reach[fit.AS_SET], width), "green"),
-            (column(plan.reach[fit.EIGHT_BIT], width), "yellow")]
+    ends = [(column(plan.reach[fit.AS_SET], width), GREEN),
+            (column(plan.reach[fit.EIGHT_BIT], width), YELLOW)]
     if pc_memory:
-        ends.append((column(max(plan.reach[fit.PC_MEMORY], plan.reach[fit.BOTH]), width), "magenta"))
+        ends.append((column(max(plan.reach[fit.PC_MEMORY], plan.reach[fit.BOTH]), width), MAGENTA))
     top = column(plan.model.max_context or HIGH, width)
     mark = column(need, width) if need else -1
+    cells = []
     for i in range(width):
         style = next((s for end, s in ends if i < end), None)
         if style:
-            line.add("█", style + (" dim" if dim else ""))
+            cells.append(("█", f"{style} 40%" if dim else style))
         elif i == mark - 1:
-            line.add("│", "yellow" if not dim else "grey")
+            cells.append(("│", MUTED if dim else "bold $text-primary"))
         elif i < top:
-            line.add("·", "grey")
+            cells.append(("·", MUTED))
         else:
-            line.add(" ")
-    return line
+            cells.append((" ", ""))
+    return runs(cells)
 
 
 def scale(width, need, steps=(8 * K, 16 * K, 32 * K, 64 * K, 128 * K, 256 * K)):
@@ -172,60 +180,86 @@ def scale(width, need, steps=(8 * K, 16 * K, 32 * K, 64 * K, 128 * K, 256 * K)):
         start = max(0, end - len(label))
         if any(i in taken for i in range(start - 1, end + 1)):
             continue
-        style = "rev bold" if tokens == need else "grey"
+        style = CHOSEN if tokens == need else MUTED
         for i, char in enumerate(label):
             if start + i < width:
                 cells[start + i] = (char, style)
                 taken.add(start + i)
-    line = Line()
-    for char, style in cells:
-        line.add(char, style)
-    return line
+    return runs(cells)
 
 
 def memory_bar(parts, total, width, over=0):
     """A bar of where a GPU's (or the PC's) memory goes, part by part"""
-    line, used = Line(), 0
+    pieces, used, drawn = [], 0, 0
     for name, size in parts:
         style, char, _ = PARTS[name]
         start, used = round(used / total * width), used + size
-        line.add(char * max(0, min(width, round(used / total * width)) - start), style)
-    line.pad(width)
+        count = max(0, min(width, round(used / total * width)) - start)
+        if count:
+            pieces.append((char * count, style))
+            drawn += count
+    pieces.append(" " * max(0, width - drawn))
     if over:
-        line.add(f" +{hardware.gb(over)} too much", "red bold")
-    return line
+        pieces.append((f" +{hardware.gb(over)} too much", "bold $error"))
+    return Content.assemble(*pieces)
 
 
-def parts_key(parts):
-    """What each colour of a memory bar is, and how big, in GB"""
-    line = Line()
+def parts_key(parts, width):
+    """What each colour of a memory bar is, and how big, in GB: as many
+    lines as it takes at this width, never breaking one apart"""
+    lines, line = [], Content("")
     for name, size in parts:
         if size < 0.05 * hardware.GiB:
             continue
         style, char, label = PARTS[name]
-        line.add("  " if len(line) else "").add(char, style).add(f" {label} {size / hardware.GiB:.1f}")
-    return line.add(" GB", "grey")
+        part = Content.assemble((char, style), f" {label} {size / hardware.GiB:.1f}")
+        if line.cell_length and line.cell_length + 2 + part.cell_length + 3 > width:
+            lines.append(line)
+            line = Content("")
+        line += Content("  " if line.cell_length else "") + part
+    return lines + [line + Content.styled(" GB", MUTED)]
 
 
-# --- What the screen shows ---
+def legend(width):
+    """What the colours of the context bars mean"""
+    words = [" fits as set   ", " with 8-bit conversation memory   ", " with PC memory, slower   ",
+             " beyond this PC, within the model's limit"]
+    short = [" as set  ", " 8-bit memory  ", " PC memory, slower  ", " beyond this PC"]
+    versions = [Content.assemble(("█", GREEN), w[0], ("█", YELLOW), w[1], ("█", MAGENTA), w[2], ("·", MUTED), w[3])
+                for w in (words, short)]
+    return first_fitting(versions, width)
+
+
+def parse_size(text):
+    """A context size typed in, such as 200k, 1M or 204800: (tokens, "") or
+    (0, why it isn't one)"""
+    text = text.strip().lower().replace(",", "")
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)(k|m)?", text)
+    if not match:
+        return 0, "That isn't a size: try 200k or 204800."
+    tokens = int(float(match[1]) * {"k": K, "m": K * K}.get(match[2], 1))
+    if tokens < 1024:
+        return 0, "That's less than 1k tokens."
+    return tokens, ""
+
+
+# --- What it shows ---
 
 PLACES = {False: "on the GPU alone", True: "with the PC's memory helping"}
+CONVERSATIONS = [1, 2, 3, 4, 6, 8]
 
 
-class Screen:
+class Fit:
+    """What the screen shows: the PC, the goal, and every downloaded model
+    for that goal, worked out by model_fit. Reading the models' files takes
+    a moment the first time; after that, a change of the goal is quick."""
+
     def __init__(self):
         self.goal = fit.Goal()
         self.found = hardware.detect()
         self.engines = fit.engines_for(self.found)
         self.models = model_facts.all_models()
         self.gpu = self.found["gpus"][0] if self.found["gpus"] else None
-        self.view = "list"
-        self.selected = 0
-        self.top = 0
-        self.route = 0
-        self.message = ""
-        self.typing = None   # the context size being typed, after o
-        self.hits = []       # (row, first column, last column, action) for the mouse
         self.build()
 
     def build(self):
@@ -233,89 +267,57 @@ class Screen:
         self.groups = fit.groups(self.models, self.engines, self.goal.conversations)
         self.rank()
 
-    def rank(self, keep=None):
-        meets, misses = fit.ranked(self.groups, self.goal)
-        self.meets, self.misses = meets, misses
-        self.rows = meets + misses
-        if keep is not None:
-            index = next((i for i, (g, _, _) in enumerate(self.rows) if g is keep), None)
-            self.selected = index if index is not None else min(self.selected, len(self.rows) - 1)
-        self.selected = max(0, min(self.selected, len(self.rows) - 1))
+    def rank(self):
+        self.meets, self.misses = fit.ranked(self.groups, self.goal)
+        self.rows = self.meets + self.misses
 
-    def current(self):
-        return self.rows[self.selected][0] if self.rows else None
+    def index_of(self, group):
+        """Where a model is in the list now, also after its ways were worked out again"""
+        return next((i for i, (g, _, _) in enumerate(self.rows) if g is group or g.files == group.files), None)
 
-    # --- The top: the goal ---
+    # --- The goal ---
 
-    def header(self, width, title, right=()):
-        """The title, and on its right the first of the versions that fits"""
-        right = first_fitting(list(right) or [""], width - len(title) - 4)
-        return [Line((f" {title}", "bold"), (" " * max(1, width - len(title) - len(right) - 2), ""),
-                     (right, "grey")),
-                rule(width, "═")]
-
-    def hardware_texts(self):
-        """What the PC has, long to short"""
-        n = self.goal.conversations
-        at_once = "1 conversation" if n == 1 else f"{n} conversations at once"
+    def pc_text(self):
+        """What the PC has, for the frame at the top"""
         if not self.gpu:
-            return [f"no NVIDIA GPU found  ·  {at_once} "]
+            return "no NVIDIA GPU found"
         name = self.gpu["name"].replace("NVIDIA GeForce ", "").replace("NVIDIA ", "")
-        vram = hardware.gb(self.gpu["total"])
         free, total = self.found["ram_available"], self.found["ram_total"]
-        return [f"{name} · {vram}  ·  RAM {hardware.gb(free)} free of {hardware.gb(total)}  ·  {at_once} ",
-                f"{name} {vram} · RAM {free / hardware.GiB:.0f}/{total / hardware.GiB:.0f} GB free · "
-                f"{at_once.replace(' at once', '')} ",
-                f"{name} {vram} "]
-
-    def dials(self, width, row):
-        """The two choices that make the goal, as rows of options to pick from"""
-        wide = width >= 110
-        lines = []
-        line = Line(("  CONTEXT YOU NEED   " if wide else "  CONTEXT   ", "bold"))
-        for tokens in self.goal.steps():
-            label = fit.tokens_text(tokens).lstrip("~") if tokens else "longest"
-            start = len(line)
-            if tokens == self.goal.context:
-                line.add(f" {label} ", "rev bold")
-            else:
-                line.add(f" {label} ")
-            self.hits.append((row, start, len(line), ("context", tokens)))
-            line.add(" ")
-        hint = first_fitting(["← →   o your own", "← →", ""], width - len(line) - 2)
-        line.add(" " * max(1, width - len(line) - len(hint) - 1)).add(hint, "grey")
-        lines.append(line)
-        line = Line(("  MAY RUN ON         " if wide else "  RUNS ON   ", "bold"))
-        places = ((False, "GPU only, fast"), (True, "GPU and PC memory: bigger models, slower")) if wide else \
-            ((False, "GPU only"), (True, "GPU + PC memory (slower)"))
-        for value, label in places:
-            start = len(line)
-            line.add(f" {label} ", "rev bold" if self.goal.pc_memory == value else "")
-            self.hits.append((row + 1, start, len(line), ("place", value)))
-            line.add("  ")
-        line.add(" " * max(1, width - len(line) - 2)).add("p", "grey")
-        lines.append(line)
-        return lines
+        return f"{name} · VRAM {hardware.gb(self.gpu['total'])} · RAM {hardware.gb(free)} free / {hardware.gb(total)}"
 
     def sentence(self):
         if not self.gpu:
             return "No NVIDIA GPU found. The stack's engines are set up for one, so none of these run here."
         goal, n = self.goal, len(self.meets)
         each = f" each, for {goal.conversations} conversations at once" if goal.conversations > 1 else ""
-        order = "Longest context first." if goal.by_context else "Biggest first."
+        order = "Longest context first." if goal.by_context else "Biggest first, a rough guide to quality."
         if not goal.context:
             return f"The longest context each model gets {PLACES[goal.pc_memory]}{each}. {order}"
         models = "1 model holds" if n == 1 else f"{n} models hold"
         return f"{models} {fit.tokens_text(goal.context)}{each} {PLACES[goal.pc_memory]}. {order}"
+
+    def goal_text(self):
+        """The goal in one line, for the printed list"""
+        goal = self.goal
+        context = fit.tokens_text(goal.context) if goal.context else "the longest"
+        place = "GPU and PC memory" if goal.pc_memory else "GPU only"
+        n = goal.conversations
+        return (f"Context you need: {context} · may run on: {place} · "
+                f"{n} conversation{'s' if n > 1 else ''} at once")
 
     # --- The list ---
 
     def widths(self, width):
         """Name and bar widths for the list, leaving the last column room to
         say how a model runs"""
-        name = max(16, min(32, (width - 8) // 4))
-        bar = max(14, min(40, width - 8 - name - 10 - 9 - 36))
+        name = max(16, min(32, (width - 4) // 4))
+        bar = max(14, min(40, width - 4 - name - 10 - 9 - 36))
         return name, bar
+
+    def list_head(self, width):
+        name_width, bar_width = self.widths(width)
+        return Content.assemble(("    " + "MODEL".ljust(name_width) + "SIZE".ljust(10), MUTED),
+                                scale(bar_width, self.goal.context), ("         HOW IT RUNS", MUTED))
 
     def how(self, route, way, room):
         """How the best way runs it, in a few words, coloured by what it asks.
@@ -329,125 +331,68 @@ class Screen:
         for quant, speed in ((f" · {route.file.quant}", slower), ("", slower), ("", "")):
             if len(route.engine.label + quant + (" + 8-bit memory" if eight else "") + ram + speed) <= room:
                 break
-        line = Line((route.engine.label + quant, ""))
-        if eight:
-            line.add(" + 8-bit memory", "yellow")
-        if ram:
-            line.add(ram + speed, "magenta")
-        return line
+        return Content.assemble(route.engine.label + quant, (" + 8-bit memory", YELLOW) if eight else "",
+                                (ram + speed, MAGENTA) if ram else "")
 
     def why_not(self, group, route):
         """Why a model doesn't meet the goal, in a few words"""
         goal = self.goal
         if group.max_context and goal.context and group.max_context < goal.context:
-            return Line((f"made for {fit.tokens_text(group.max_context)}", "grey"))
+            return Content.styled(f"made for {fit.tokens_text(group.max_context)}", MUTED)
         if route and not goal.pc_memory and route.plan.most(True) >= max(goal.context, 4 * K):
-            return Line(("only with PC memory: ", "grey"), ("p", "bold"))
+            return Content.assemble(("only with PC memory: ", MUTED), ("p", KEY))
         size, way = fit.better_size(group, goal, self.engines)
         if size:
-            return Line((f"as a {size.file.quant} it would: not downloaded", "grey"))
+            return Content.styled(f"as a {size.file.quant} it would: not downloaded", MUTED)
         if route and route.plan.most(goal.pc_memory):
-            return Line((f"{route.engine.label} gets {fit.tokens_text(route.plan.most(goal.pc_memory))} at most",
-                         "grey"))
+            return Content.styled(f"{route.engine.label} gets {fit.tokens_text(route.plan.most(goal.pc_memory))} "
+                                  "at most", MUTED)
         why = route.plan.why if route else ""
-        return Line((why or "doesn't run here", "grey"))
+        return Content.styled(why or "doesn't run here", MUTED)
 
     def row(self, index, width, name_width, bar_width):
         group, route, way = self.rows[index]
         meets = index < len(self.meets)
-        chosen = index == self.selected and self.view == "list"
-        line = Line(("  ► " if chosen else "    ", "cyan bold"))
-        line.add(f"{index + 1:>2}  " if meets else "    ", "grey")
-        name = shorten(group.name, name_width - 1)
-        line.add(f"{name:<{name_width}}", ("bold" if chosen else "") if meets else "grey")
-        line.add(f"{group.size_text():<10}", "" if meets else "grey")
+        pieces = [(f"{index + 1:>2}  " if meets else "    ", MUTED),
+                  (f"{shorten(group.name, name_width - 1):<{name_width}}", "" if meets else MUTED),
+                  (f"{group.size_text():<10}", "" if meets else MUTED)]
         if route:
-            line.join(context_bar(route.plan, self.goal.pc_memory, bar_width, self.goal.context, dim=not meets))
+            pieces.append(context_bar(route.plan, self.goal.pc_memory, bar_width, self.goal.context, dim=not meets))
             most = route.plan.most(self.goal.pc_memory)
-            line.add(f" {fit.tokens_text(most) if most else '–':>6}  ", "bold" if meets else "grey")
+            pieces.append((f" {fit.tokens_text(most) if most else '–':>6}  ", "bold" if meets else MUTED))
         else:
-            line.add(" " * (bar_width + 9))
-        room = width - len(line)
-        return line.join(self.how(route, way, room) if meets else self.why_not(group, route))
+            pieces.append(" " * (bar_width + 9))
+        room = width - (4 + name_width + 10 + bar_width + 9)
+        pieces.append(self.how(route, way, room) if meets else self.why_not(group, route))
+        return Content.assemble(*pieces).truncate(width, ellipsis=True)
 
-    def list_screen(self, width, height=None):
-        """The list, filling the height; all of it, unscrolled, without one"""
-        self.hits = []
-        lines = self.header(width, "MODEL FIT", self.hardware_texts())
-        lines += self.dials(width, len(lines) + 1)
-        lines.append(rule(width))
-        lines += [Line(("  " + text, "bold")) for text in wrap(self.sentence(), width - 3)]
+    def list_entries(self, width):
+        """The list's rows for a JumpList: the models that meet the goal with
+        their number, then a line, then the ones that don't"""
         name_width, bar_width = self.widths(width)
-        head = Line(("        " + "MODEL".ljust(name_width) + "SIZE".ljust(10), "grey"))
-        head.join(scale(bar_width, self.goal.context)).add("         HOW IT RUNS", "grey")
-        lines.append(Line())
-        lines.append(head)
-
-        footer = self.footer(width)
-        room = max(3, height - len(lines) - len(footer)) if height else 10 ** 6
-        body = []
+        entries = []
         for index in range(len(self.rows)):
             if index == len(self.meets) and self.misses:
-                label = f"{len(self.misses)} don't" + (f" hold {fit.tokens_text(self.goal.context)}"
-                                                        if self.goal.context else " run here")
-                body.append((None, rule(width, "─", label)))
-            body.append((index, self.row(index, width, name_width, bar_width)))
-        if not self.rows:
-            body.append((None, Line(("    No models downloaded yet. The downloaders in manage.sh fetch them.", "grey"))))
-        # Keep the chosen model in view
-        at = next((i for i, (index, _) in enumerate(body) if index == self.selected), 0)
-        if at < self.top:
-            self.top = at
-        elif at >= self.top + room:
-            self.top = at - room + 1
-        self.top = max(0, min(self.top, max(0, len(body) - room)))
-        shown = body[self.top: self.top + room]
-        for index, line in shown:
-            if index is not None:
-                self.hits.append((len(lines) + 1, 0, width, ("row", index)))
-            lines.append(line)
-        if height:
-            lines += [Line()] * (room - len(shown))
-        above, below = self.top, max(0, len(body) - self.top - room)
-        lines += self.with_scroll(footer, above, below, width)
-        return lines
-
-    def with_scroll(self, footer, above, below, width):
-        if above or below:
-            marks = []
-            if above:
-                marks.append(f"↑ {above} more")
-            if below:
-                marks.append(f"↓ {below} more")
-            footer[0] = rule(width, "═", "  ".join(marks))
-        return footer
-
-    def footer(self, width):
-        if width >= 120:
-            words = (" fits as set   ", " with 8-bit conversation memory   ", " with PC memory, slower   ",
-                     " beyond this PC, within the model's limit")
-        else:
-            words = (" as set  ", " 8-bit memory  ", " PC memory, slower  ", " beyond this PC")
-        legend = Line(("  ", ""), ("█", "green"), (words[0], ""), ("█", "yellow"), (words[1], ""),
-                      ("█", "magenta"), (words[2], ""), ("·", "grey"), (words[3], ""))
-        if self.typing is not None:
-            keys = Line(("  Context size in tokens, e.g. 200k: ", "bold"), (self.typing + "▏", "cyan"),
-                        ("    Enter to add it, Esc to cancel", "grey"))
-        elif self.message:
-            keys = Line(("  " + self.message, "yellow"))
-        else:
-            keys = Line((first_fitting([
-                "  ↑↓ move   Enter details   ← → context   p PC memory   c conversations   s sort   "
-                "o own size   Esc back to the menu",
-                "  ↑↓ move  Enter details  ← → context  p PC memory  c chats  s sort  o own  Esc back",
-                "  ↑↓ Enter  ← → context  p PC memory  c chats  s sort  Esc back"], width), "grey"))
-        note = Line((first_fitting([
-            "  Biggest first is a rough guide: within a family, more parameters mean better answers. "
-            "Estimates, not measurements.",
-            "  Biggest first is a rough guide, and the numbers are estimates."], width), "grey"))
-        return [rule(width, "═"), legend, note, keys]
+                n = len(self.misses)
+                label = ("1 doesn't" if n == 1 else f"{n} don't") + \
+                    (f" hold {fit.tokens_text(self.goal.context)}" if self.goal.context else " run here")
+                entries.append((None, rule(width, label), None, ""))
+            key = str(index + 1) if index < len(self.meets) else None
+            entries.append((key, self.row(index, width, name_width, bar_width), f"m{index}", ""))
+        return entries
 
     # --- One model in detail ---
+
+    def about(self, group):
+        """What a model is, for its panel's frame"""
+        size = group.size_text().replace(" MoE", "")
+        about = [f"{size} parameters, about {group.active / 1e9:.0f}B at work per token (MoE)" if group.moe
+                 else f"{size} parameters · dense"]
+        if group.vision:
+            about.append("reads images")
+        if group.max_context:
+            about.append(f"made for up to {fit.tokens_text(group.max_context)}")
+        return " · ".join(about)
 
     def detail_routes(self, group):
         """The downloaded ways to run it, and the size that isn't downloaded
@@ -463,85 +408,52 @@ class Screen:
                     -route.bits(), -route.plan.most(self.goal.pc_memory))
         return sorted(routes, key=order)
 
-    def detail_screen(self, width, height):
-        self.hits = []
-        group = self.current()
-        about = [group.size_text().replace(" MoE", "") + " parameters"]
-        if group.moe:
-            about[0] = (f"{group.size_text().replace(' MoE', '')} parameters, "
-                        f"about {group.active / 1e9:.0f}B at work per token (MoE)")
+    def way_widths(self, width):
+        bar = max(18, min(34, (width - 60) // 2))
+        return bar, max(24, width - 11 - bar - 9 - 28)
+
+    def ways_head(self, width):
+        bar_width, what_width = self.way_widths(width)
+        return Content.assemble(("WAYS TO RUN IT HERE".ljust(11 + what_width), HEAD),
+                                scale(bar_width, self.goal.context))
+
+    def way_row(self, route, width):
+        bar_width, what_width = self.way_widths(width)
+        plan = route.plan
+        way = plan.way(self.goal.context or 4 * K, self.goal.pc_memory)
+        size = hardware.gb(route.file.weights + route.file.vision_file)
+        if route.downloaded:
+            what = f"{shorten(route.file.name, what_width - len(size) - 4)} · {size}"
         else:
-            about.append("dense")
-        if group.vision:
-            about.append("reads images")
-        if group.max_context:
-            about.append(f"made for up to {fit.tokens_text(group.max_context)}")
-        lines = self.header(width, group.name.upper())
-        lines.insert(1, Line(("  " + " · ".join(about), "")))
-        lines += self.dials(width, len(lines) + 1)
-        lines.append(rule(width))
-
-        routes = self.detail_routes(group)
-        self.route = max(0, min(self.route, len(routes) - 1))
-        bar_width = max(18, min(34, (width - 60) // 2))
-        what_width = max(24, width - 4 - 11 - bar_width - 9 - 28)
-        lines.append(Line(("  WAYS TO RUN IT HERE".ljust(4 + 11 + what_width), "bold"))
-                     .join(scale(bar_width, self.goal.context)))
-        need = self.goal.context or 4 * K
-        for index, route in enumerate(routes):
-            plan = route.plan
-            chosen = index == self.route
-            way = plan.way(need, self.goal.pc_memory)
-            line = Line(("  ► " if chosen else "    ", "cyan bold"))
-            size = hardware.gb(route.file.weights + route.file.vision_file)
-            if route.downloaded:
-                what = f"{shorten(route.file.name, what_width - len(size) - 4)} · {size}"
-            else:
-                what = shorten(f"{route.file.quant} GGUF, not downloaded · ~{size}", what_width - 1)
-            line.add(f"{route.engine.label:<11}", "bold" if chosen else "")
-            line.add(f"{what:<{what_width}}", "" if route.downloaded else "grey")
-            line.join(context_bar(plan, self.goal.pc_memory, bar_width, self.goal.context,
-                                  dim=not route.downloaded))
-            most = plan.most(self.goal.pc_memory)
-            line.add(f" {fit.tokens_text(most) if most else '–':>6}  ", "bold" if way is not None else "grey")
-            line.join(self.verdict(route, way))
-            self.hits.append((len(lines) + 1, 0, width, ("route", index)))
-            lines.append(line)
-
-        route = routes[self.route] if routes else None
-        if route:
-            lines.append(Line())
-            lines += self.memory(route, width)
-            lines.append(Line())
-            lines += self.how_to_use(group, route, width)
-        footer = [rule(width, "═"), Line((first_fitting([
-            "  ↑↓ move between the ways   ← → context   p PC memory   c conversations   Esc back to the list",
-            "  ↑↓ move  ← → context  p PC memory  c chats  Esc back"], width), "grey"))]
-        lines = lines[: max(0, height - len(footer))]
-        lines += [Line()] * (height - len(footer) - len(lines))
-        return lines + footer
+            what = shorten(f"{route.file.quant} GGUF, not downloaded · ~{size}", what_width - 1)
+        most = plan.most(self.goal.pc_memory)
+        return Content.assemble(
+            f"{route.engine.label:<11}", (f"{what:<{what_width}}", "" if route.downloaded else MUTED),
+            context_bar(plan, self.goal.pc_memory, bar_width, self.goal.context, dim=not route.downloaded),
+            (f" {fit.tokens_text(most) if most else '–':>6}  ", "bold" if way is not None else MUTED),
+            self.verdict(route, way)).truncate(width, ellipsis=True)
 
     def verdict(self, route, way):
         """Whether a way meets the goal, and what it takes"""
         if way is None:
             plan = route.plan
             if not self.goal.pc_memory and plan.most(True) >= max(self.goal.context, 4 * K):
-                return Line(("only with PC memory: ", "grey"), ("p", "bold"))
+                return Content.assemble(("only with PC memory: ", MUTED), ("p", KEY))
             if not plan.most(self.goal.pc_memory):
                 why = plan.why or "doesn't run here"
                 short = ("too big for " + route.engine.label if why.startswith("too big") else
                          "won't start, see below" if why.startswith("won't start") else
                          "can't run it natively" if "natively" in why else why)
-                return Line((short, "grey"))
-            return Line((f"falls short of {fit.tokens_text(self.goal.context)}", "grey"))
-        words = {fit.AS_SET: ("meets it as set", "green"), fit.EIGHT_BIT: ("with 8-bit memory", "yellow"),
-                 fit.PC_MEMORY: ("with PC memory", "magenta"), fit.BOTH: ("8-bit and PC memory", "magenta")}
+                return Content.styled(short, MUTED)
+            return Content.styled(f"falls short of {fit.tokens_text(self.goal.context)}", MUTED)
+        words = {fit.AS_SET: ("meets it as set", GREEN), fit.EIGHT_BIT: ("with 8-bit memory", YELLOW),
+                 fit.PC_MEMORY: ("with PC memory", MAGENTA), fit.BOTH: ("8-bit and PC memory", MAGENTA)}
         text, style = words[way]
         if not self.goal.context and way == fit.AS_SET:
             text = "as set"
         if not route.downloaded:
             text = "would: " + text.replace("meets it ", "")
-        return Line((text, style))
+        return Content.styled(text, style)
 
     def memory(self, route, width):
         """Where the GPU's and the PC's memory goes on this way: at the goal
@@ -563,26 +475,29 @@ class Screen:
         if not tokens:
             tokens = 4 * K
         layout = plan.layout(tokens, way)
-        lines = [Line(("  WHERE THE MEMORY GOES", "bold"), (f"   {route.engine.label} {at}", "grey"))]
+        lines = [Content.assemble(("WHERE THE MEMORY GOES", HEAD), (f"   {route.engine.label} {at}", MUTED))]
         bar_width = max(30, min(72, width - 20))
+        indent = " " * 15
         if self.gpu:
-            lines.append(Line((f"  GPU {hardware.gb(self.gpu['total']):>9}  ", "bold"))
-                         .join(memory_bar(layout.gpu, self.gpu["total"], bar_width, layout.over)))
-            lines.append(Line(("                 ", "")).join(parts_key(layout.gpu)))
+            lines.append(Content.assemble((f"GPU {hardware.gb(self.gpu['total']):>9}  ", "bold"),
+                                          memory_bar(layout.gpu, self.gpu["total"], bar_width, layout.over)))
+            lines += [Content(indent) + part for part in parts_key(layout.gpu, width - len(indent))]
         if layout.ram:
             total = self.found["ram_total"]
-            lines.append(Line((f"  RAM {hardware.gb(total):>9}  ", "bold"))
-                         .join(memory_bar(layout.ram, total, bar_width)))
-            lines.append(Line(("                 ", "")).join(parts_key(layout.ram)))
+            lines.append(Content.assemble((f"RAM {hardware.gb(total):>9}  ", "bold"),
+                                          memory_bar(layout.ram, total, bar_width)))
+            lines += [Content(indent) + part for part in parts_key(layout.ram, width - len(indent))]
         if not layout.fits:
-            why = layout.why
-            if not self.goal.pc_memory and plan.most(True):
-                why = (f"It needs {hardware.gb(layout.over)} more than the GPU has. With PC memory it runs: p"
-                       if layout.over else why)
-            lines.append(Line(("                 " + why, "yellow")))
+            if not self.goal.pc_memory and plan.most(True) and layout.over:
+                why = Content.assemble((f"It needs {hardware.gb(layout.over)} more than the GPU has. "
+                                        "With PC memory it runs: ", YELLOW), ("p", KEY))
+            else:
+                why = Content.styled(layout.why, YELLOW)
+            lines.append(Content.assemble(indent, why))
         return lines
 
-    def how_to_use(self, group, route, width):
+    def how_to_use(self, group, route):
+        """What to do to run it this way, in a few short paragraphs"""
         plan, engine, f = route.plan, route.engine, route.file
         need = self.goal.context
         way = plan.way(need or 4 * K, self.goal.pc_memory)
@@ -592,7 +507,8 @@ class Screen:
                      if engine.name == "ollama" else
                      "stack/downloaders/huggingface/models.txt as organization/model-GGUF:" + f.quant)
             text.append(f"This size isn't downloaded, and it only exists if someone publishes it. If you find a "
-                        f"{f.quant} of {group.name}, add it to {where}, then run Sync models.")
+                        f"{f.quant} of {group.name}, add it to {where}, then run Sync models in its downloader "
+                        "(Models › Downloaders).")
         elif engine.name in ("vllm", "sglang"):
             text.append(f"In the menu: {engine.name} → Set model, pick {f.name}, then Start. "
                         f"{engine.label} makes the context as long as fits by itself.")
@@ -613,7 +529,7 @@ class Screen:
                         "app asks for more.")
             if need and need > context:
                 text.append(f"For {fit.tokens_text(need)}, save it in a spec: PARAMETER num_ctx {need} in "
-                            "stack/downloaders/ollama/specs, then sync_models.")
+                            "stack/downloaders/ollama/specs, then run Sync models in the ollama downloader.")
             if route.presets:
                 saved = ", ".join(f"{p.name} ({fit.tokens_text(engine.as_set(p))})" for p in route.presets)
                 text.append(f"Saved with settings of its own: {saved}.")
@@ -626,243 +542,483 @@ class Screen:
             layout = plan.layout(need or plan.most(True), way)
             text.append(f"{hardware.gb(layout.on('ram'))} of it runs from PC memory: {layout.slower}.")
         if route.file.incomplete:
-            text.append(f"Its download is missing {route.file.incomplete}: run sync_models in its downloader.")
+            text.append(f"Its download is missing {route.file.incomplete}: run Sync models in its downloader.")
         if group.rough:
             text.append(f"This model is {group.rough}.")
-        lines = [Line(("  TO USE IT", "bold"))]
-        for paragraph in text:
-            lines += [Line(("  " + line, "")) for line in wrap(paragraph, width - 4)]
-        return lines
+        return text
 
-    # --- Changing things ---
+    def way_text(self, group, route, width):
+        """Under the ways: where the memory goes, and what to do to use it"""
+        lines = self.memory(route, width) + [Content(""), Content.styled("TO USE IT", HEAD)]
+        lines += [Content(paragraph) for paragraph in self.how_to_use(group, route)]
+        return Content("\n").join(lines)
+
+    # --- Changing the goal; each change is saved at once ---
 
     def set_context(self, tokens):
-        keep = self.current()
         self.goal.context = tokens
         self.goal.save()
-        self.rank(keep)
+        self.rank()
 
     def step_context(self, step):
         steps = self.goal.steps()
         index = steps.index(self.goal.context) if self.goal.context in steps else 3
         self.set_context(steps[max(0, min(len(steps) - 1, index + step))])
 
-    def set_place(self, pc_memory):
-        keep = self.current()
-        self.goal.pc_memory = pc_memory
-        self.goal.save()
-        self.rank(keep)
-
-    def next_conversations(self):
-        keep = self.current()
-        counts = [1, 2, 3, 4, 6, 8]
-        n = self.goal.conversations
-        self.goal.conversations = next((c for c in counts if c > n), 1)
-        self.goal.save()
-        self.build()
-        self.rank(next((g for g in self.groups if keep and g.files == keep.files), None))
-
-    def toggle_sort(self):
-        keep = self.current()
-        self.goal.by_context = not self.goal.by_context
-        self.goal.save()
-        self.rank(keep)
-
-    def own_size(self, text):
-        text = text.strip().lower().replace(",", "")
-        match = re.fullmatch(r"(\d+(?:\.\d+)?)(k|m)?", text)
-        if not match:
-            self.message = "That isn't a size: try 200k or 204800."
-            return
-        tokens = int(float(match[1]) * {"k": K, "m": K * K}.get(match[2], 1))
-        if tokens < 1024:
-            self.message = "That's less than 1k tokens."
-            return
+    def own_size(self, tokens):
         self.goal.extra = tokens
         self.set_context(tokens)
 
-    def key(self, key):
-        """Does what a key asks; False to leave"""
-        self.message = ""
-        if self.typing is not None:
-            if key == "enter":
-                text, self.typing = self.typing, None
-                self.own_size(text)
-            elif key == "esc":
-                self.typing = None
-            elif key == "backspace":
-                self.typing = self.typing[:-1]
-            elif len(key) == 1 and (key.isdigit() or key in "kKmM.,"):
-                self.typing += key
-            return True
-        if key == "esc":
-            if self.view == "detail":
-                self.view = "list"
-                return True
-            return False
-        if key in ("left", "right"):
-            self.step_context(-1 if key == "left" else 1)
-        elif key == "p":
-            self.set_place(not self.goal.pc_memory)
-        elif key == "c":
-            self.next_conversations()
-        elif key == "o":
-            self.typing = ""
-        elif self.view == "list":
-            self.list_key(key)
-        else:
-            routes = self.detail_routes(self.current())
-            if key == "up":
-                self.route = max(0, self.route - 1)
-            elif key == "down":
-                self.route = min(len(routes) - 1, self.route + 1)
-        return True
+    def set_place(self, pc_memory):
+        self.goal.pc_memory = pc_memory
+        self.goal.save()
+        self.rank()
 
-    def list_key(self, key):
-        last = len(self.rows) - 1
-        moves = {"up": -1, "down": 1, "pageup": -10, "pagedown": 10}
-        if key in moves:
-            self.selected = max(0, min(last, self.selected + moves[key]))
-        elif key == "home":
-            self.selected = 0
-        elif key == "end":
-            self.selected = last
-        elif key == "enter" and self.rows:
-            self.view, self.route = "detail", 0
-        elif key == "s":
-            self.toggle_sort()
+    def set_conversations(self, n):
+        self.goal.conversations = n
+        self.goal.save()
+        self.build()
 
-    def click(self, row, col, button):
-        """A mouse click (button 0) or the wheel (64 up, 65 down)"""
-        if button in (64, 65):
-            return self.key("up" if button == 64 else "down")
-        for hit_row, first, last, (what, value) in self.hits:
-            if hit_row == row and first <= col < last:
-                if what == "context":
-                    self.set_context(value)
-                elif what == "place":
-                    self.set_place(value)
-                elif what == "row":
-                    if value == self.selected:
-                        self.view, self.route = "detail", 0
-                    self.selected = value
-                elif what == "route":
-                    self.route = value
-                return True
-        return True
+    def next_conversations(self):
+        self.set_conversations(next((c for c in CONVERSATIONS if c > self.goal.conversations), 1))
 
-    def frame(self, width, height):
-        if width < 80 or height < 20:
-            return [Line((" Make the window at least 80 columns wide and 20 lines high.", "yellow"))]
+    def set_sort(self, by_context):
+        self.goal.by_context = by_context
+        self.goal.save()
+        self.rank()
+
+    # --- Printed once ---
+
+    def printed(self, width):
+        """The list for the saved goal, as lines to print"""
+        lines = [Content.assemble(("Model fit", "bold"), (f"   {self.pc_text()}", MUTED)),
+                 Content.styled(self.goal_text(), MUTED), Content(""), Content.styled(self.sentence(), "bold"),
+                 Content(""), self.list_head(width)]
+        lines += [text for _, text, _, _ in self.list_entries(width)]
         if not self.rows:
-            self.view = "list"
-        if self.view == "detail":
-            return self.detail_screen(width, height)
-        return self.list_screen(width, height)
+            lines.append(Content.styled("    No models downloaded yet. Models › Downloaders gets them.", MUTED))
+        return lines + [Content(""), legend(width)]
 
 
-def shorten(text, width):
-    """Shortens a long name in the middle, so the columns line up"""
-    if len(text) <= width:
-        return text
-    keep = width - 1
-    return text[: keep // 2] + "…" + text[len(text) - (keep - keep // 2):]
+# --- The screen ---
+
+class FitList(JumpList):
+    """A list on the fit screen. A click only highlights, since what's
+    highlighted shows in the panel under it, and ← → move between the list
+    and that panel, as in the menu."""
+
+    BINDINGS = [Binding("left", "screen.side_left", show=False),
+                Binding("right", "screen.side_right", show=False)]
+
+    async def _on_click(self, event):
+        event.prevent_default()  # OptionList's own click would choose it too
+        index = event.style.meta.get("option")
+        if index is not None and not self.options[index].disabled:
+            self.highlighted = index
+        self.focus()
 
 
-# --- The terminal ---
+class WaysList(FitList):
+    """The ways to run a model, in the panel under the list: PgUp and PgDn
+    scroll that panel, for what's under them on a short screen"""
 
-KEYS = {"[A": "up", "[B": "down", "[C": "right", "[D": "left", "OA": "up", "OB": "down", "OC": "right",
-        "OD": "left", "[5~": "pageup", "[6~": "pagedown", "[H": "home", "[F": "end", "[1~": "home",
-        "[4~": "end", "OH": "home", "OF": "end"}
-
-
-def read_key(fd):
-    """One key: a letter, or up, down, left, right, enter, backspace, esc,
-    pageup, pagedown, home, end; or ("mouse", row, column, button)"""
-    data = os.read(fd, 1)
-    if data == b"\x1b":
-        rest = b""
-        while select.select([fd], [], [], 0.03)[0]:
-            rest += os.read(fd, 1)
-            if rest[-1:].isalpha() or rest[-1:] == b"~" or (rest.startswith(b"[<") and rest[-1:] in b"Mm"):
-                break
-        text = rest.decode(errors="ignore")
-        if text.startswith("[<") and text[-1:] in "Mm":
-            try:
-                button, col, row = (int(x) for x in text[2:-1].split(";"))
-            except ValueError:
-                return ""
-            return ("mouse", row, col - 1, button) if text[-1] == "M" else ""
-        return KEYS.get(text, "esc" if not text else "")
-    if data in (b"\r", b"\n"):
-        return "enter"
-    if data in (b"\x7f", b"\x08"):
-        return "backspace"
-    if data == b"\x03":
-        raise KeyboardInterrupt
-    return data.decode(errors="ignore")
+    BINDINGS = [Binding("pageup", "screen.scroll_detail(-1)", show=False),
+                Binding("pagedown", "screen.scroll_detail(1)", show=False)]
 
 
-def run(screen):
-    fd = sys.stdin.fileno()
-    saved = termios.tcgetattr(fd)
-    resized = [True]
-    signal.signal(signal.SIGWINCH, lambda *_: resized.__setitem__(0, True))
-    out = sys.stdout
-    # The alternate screen, so manage.sh's menu comes back as it was; no
-    # cursor; mouse clicks and the wheel reported as keys
-    out.write("\033[?1049h\033[?25l\033[?1000h\033[?1006h")
-    try:
-        tty.setcbreak(fd)
-        while True:
-            width, height = shutil.get_terminal_size()
-            lines = screen.frame(width, height)
-            out.write("\033[H" + "".join(line.draw(width) + "\033[K\r\n" for line in lines[:height - 1])
-                      + (lines[height - 1].draw(width) if len(lines) >= height else "") + "\033[J")
-            out.flush()
-            resized[0] = False
-            while not select.select([fd], [], [], 0.25)[0]:
-                if resized[0]:
-                    break
-            if resized[0]:
-                continue
-            key = read_key(fd)
-            if isinstance(key, tuple):
-                screen.click(key[1], key[2], key[3])
-            elif key and not screen.key(key):
-                break
-    except KeyboardInterrupt:
-        pass
-    finally:
-        out.write("\033[?1000l\033[?1006l\033[?25h\033[?1049l")
-        out.flush()
-        termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+class Detail(VerticalScroll, can_focus=False):
+    """The panel under the list, which the mouse scrolls when it's long"""
 
 
-def print_once(screen):
-    """The list for the saved goal, once, for output that isn't a terminal"""
+class FitScreen(Screen):
+    """The fit, full screen: the goal at the top, the models for it under
+    it, and the highlighted model in the panel at the bottom. Esc goes back,
+    from that panel to the list, and from the list out of the fit (leaving
+    says where to)."""
+
+    BINDINGS = [
+        Binding("escape", "back", show=False),
+        Binding("minus", "step_context(-1)", show=False),
+        Binding("plus,equals_sign", "step_context(1)", show=False),
+        Binding("p", "toggle_place", show=False),
+        Binding("c", "next_conversations", show=False),
+        Binding("s", "toggle_sort", show=False),
+        Binding("o", "own_size", show=False),
+    ]
+
+    def __init__(self, leaving="back to the menu"):
+        super().__init__()
+        self.leaving = leaving
+        self.fit = None
+        self.routes = []     # the ways to run the model the panel shows
+        self.shown = None    # that model
+
+    def compose(self) -> ComposeResult:
+        yield Static(id="fit-goal", classes="panel")
+        with Vertical(id="fit-models", classes="panel"):
+            yield Static(id="fit-head")
+            yield FitList(id="fit-list")
+        with Detail(id="fit-detail", classes="panel"):
+            yield Static(id="fit-ways-head")
+            yield WaysList(id="fit-ways")
+            yield Static(id="fit-more")
+        yield Static(id="fit-keys")
+
+    def on_mount(self):
+        self.query_one("#fit-goal").border_title = "Models › Tuning › Fit"
+        self.query_one("#fit-models").border_title = "Working out what fits…"
+        self.query_one("#fit-detail").display = False
+        self.query_one("#fit-list", FitList).focus()
+        self.show_keys()
+        self.load()
+
+    @work(thread=True, exclusive=True)
+    def load(self):
+        """Reads the PC and the models' files, which takes a moment the first time"""
+        try:
+            found = Fit()
+        except Exception as error:  # shown where the list would be, rather than ending the menu
+            self.app.call_from_thread(self.failed, error)
+            return
+        self.app.call_from_thread(self.loaded, found)
+
+    def failed(self, error):
+        self.query_one("#fit-models").border_title = "Couldn't work out what fits"
+        self.query_one("#fit-head", Static).update(Content.styled(f"{type(error).__name__}: {error}", "$error"))
+
+    def loaded(self, found):
+        self.fit = found
+        # Once the panels have their size, which the rows are cut to
+        self.call_after_refresh(self.draw)
+
+    # --- Drawing ---
+
+    def list_width(self):
+        """Room for a row of the list: inside its padding, and the scrollbar's column kept"""
+        return max(60, self.query_one("#fit-list").size.width - 3)
+
+    def draw(self, keep=None):
+        """Everything again for the goal as it is now. The list keeps its
+        model (keep, or the highlighted one), wherever the new order puts it."""
+        if not self.fit:
+            return
+        fit_now = self.fit
+        models = self.query_one("#fit-list", FitList)
+        if keep is None:
+            keep = self.highlighted_group()
+        self.draw_goal()
+        width = self.list_width()
+        panel = self.query_one("#fit-models")
+        panel.border_title = fit_now.sentence()
+        panel.border_subtitle = legend(width - 4)
+        self.query_one("#fit-head", Static).update(Content(" ").append(fit_now.list_head(width)))
+        if not fit_now.rows:
+            models.fill([(None, Content.styled("No models downloaded yet. Models › Downloaders gets them.", MUTED),
+                          None, "")])
+            self.query_one("#fit-detail").display = False
+            return
+        at = fit_now.index_of(keep) if keep else None
+        models.fill(fit_now.list_entries(width), keep=False, prefer=f"m{at if at is not None else 0}")
+        self.show_detail(force=True)
+
+    def draw_goal(self):
+        """The choices at the top: a click on one, or its key, changes it"""
+        goal = self.fit.goal
+        panel = self.query_one("#fit-goal", Static)
+        width = max(60, panel.size.width - 2)
+        wide = width >= 110
+        steps = []
+        for tokens in goal.steps():
+            label = fit.tokens_text(tokens).lstrip("~") if tokens else "longest"
+            steps.append((label, f"set_context({tokens})", tokens == goal.context))
+        own = Content.assemble(" ", ("O", "bold underline"), "wn size… ")
+        places = ((False, "GPU only, fast"), (True, "GPU and PC memory: bigger models, slower")) if wide else \
+            ((False, "GPU only"), (True, "GPU + PC memory (slower)"))
+        counts = sorted(set(CONVERSATIONS + [goal.conversations]))
+        orders = ((False, "Biggest first"), (True, "Longest context first"))
+        rows = [
+            ("Context you need" if wide else "Context", steps + [(own, "own_size", False)], "- +"),
+            ("May run on" if wide else "Runs on",
+             [(label, f"set_place({value})", value == goal.pc_memory) for value, label in places], "p"),
+            ("Conversations at once" if wide else "At once",
+             [(str(n), f"set_conversations({n})", n == goal.conversations) for n in counts], "c"),
+            ("Order", [(label, f"set_sort({value})", value == goal.by_context) for value, label in orders], "s"),
+        ]
+        label_width = 23 if wide else 9
+        lines = []
+        for label, chips, key in rows:
+            line = Content.styled(f"{label:<{label_width}}", "bold")
+            for text, action, chosen in chips:
+                chip = text if isinstance(text, Content) else Content(f" {text} ")
+                line += chip.stylize_before(f"{CHOSEN if chosen else ''} @click=screen.{action}".strip()) + " "
+            line += Content(" " * max(1, width - line.cell_length - len(key)))
+            lines.append(line + Content.styled(key, KEY))
+        panel.update(Content("\n").join(lines))
+        panel.border_subtitle = self.fit.pc_text()
+
+    def highlighted_group(self):
+        models = self.query_one("#fit-list", FitList)
+        option = models.highlighted_option
+        if not self.fit or not option or not option.id:
+            return None
+        index = int(option.id[1:])
+        return self.fit.rows[index][0] if index < len(self.fit.rows) else None
+
+    def show_detail(self, force=False):
+        """The panel under the list, for the model it highlights: its ways to
+        run it, and for the way highlighted there, where the memory goes and
+        what to do to use it"""
+        group = self.highlighted_group()
+        detail = self.query_one("#fit-detail", Detail)
+        if not group:
+            detail.display = False
+            return
+        if group is self.shown and not force:
+            return
+        ways = self.query_one("#fit-ways", FitList)
+        same = group is self.shown or (self.shown is not None and group.files == self.shown.files)
+        kept = ways.highlighted if same else 0
+        self.shown = group
+        detail.display = True
+        width = self.list_width()
+        detail.border_title = f"{group.name} · {self.fit.about(group)}"
+        detail.border_subtitle = "estimates, not measurements"
+        self.query_one("#fit-ways-head", Static).update(Content(" ").append(self.fit.ways_head(width)))
+        self.routes = self.fit.detail_routes(group)
+        ways.fill([(None, self.fit.way_row(route, width), f"w{i}", "") for i, route in enumerate(self.routes)],
+                  keep=False, prefer=f"w{min(kept or 0, len(self.routes) - 1)}")
+        if not same:
+            detail.scroll_home(animate=False)
+        self.show_way()
+
+    def show_way(self):
+        ways = self.query_one("#fit-ways", FitList)
+        option = ways.highlighted_option
+        more = self.query_one("#fit-more", Static)
+        if not option or not self.shown:
+            more.update("")
+            return
+        route = self.routes[int(option.id[1:])]
+        more.update(self.fit.way_text(self.shown, route, self.list_width()))
+        # Whether PgUp PgDn have more to show, once it's laid out
+        self.call_after_refresh(self.show_keys)
+
+    def show_keys(self):
+        """The line at the bottom: the keys of the list or of the panel under it"""
+        in_ways = self.focused is not None and self.focused.id == "fit-ways"
+        if in_ways:
+            moves = [("↑↓", "the ways to run it"), ("← or Esc", "back to the list")]
+            if self.query_one("#fit-detail").max_scroll_y:
+                moves.insert(1, ("PgUp PgDn", "scroll"))
+        else:
+            moves = [("↑↓", "move"), ("its number", "jumps to it"), ("→ or Enter", "its ways to run it")]
+        goal = [("- +", "context"), ("o", "own size"), ("p", "PC memory"), ("c", "conversations"), ("s", "order")]
+        leave = [] if in_ways else [("Esc", self.leaving)]
+        width = self.size.width - 2
+        short = [(key, what.split()[0]) for key, what in moves[:1]] + moves[1:2] + \
+            [(key, what) for key, what in goal if key in ("- +", "p")] + leave
+        line = first_fitting([keys_line(*moves, *goal, *leave), keys_line(*moves[:2], *goal, *leave),
+                              keys_line(*short)], width)
+        self.query_one("#fit-keys", Static).update(line)
+
+    def on_resize(self, event):
+        self.draw()
+        self.show_keys()
+
+    # --- Moving around ---
+
+    @on(OptionList.OptionHighlighted, "#fit-list")
+    def model_highlighted(self, event):
+        self.show_detail()
+
+    @on(OptionList.OptionHighlighted, "#fit-ways")
+    def way_highlighted(self, event):
+        self.show_way()
+
+    @on(OptionList.OptionSelected, "#fit-list")
+    def model_chosen(self, event):
+        self.action_side_right()
+
+    def on_descendant_focus(self, event):
+        self.show_keys()
+
+    def action_side_right(self):
+        """From the list into the panel under it"""
+        ways = self.query_one("#fit-ways", FitList)
+        if self.focused is self.query_one("#fit-list") and self.shown and ways.option_count:
+            ways.focus()
+
+    def action_side_left(self):
+        if self.focused is self.query_one("#fit-ways"):
+            self.query_one("#fit-list", FitList).focus()
+
+    def action_scroll_detail(self, direction):
+        detail = self.query_one("#fit-detail", Detail)
+        detail.scroll_to(y=detail.scroll_y + direction * max(1, detail.size.height - 2), animate=False)
+
+    def action_back(self):
+        if self.focused is self.query_one("#fit-ways"):
+            self.query_one("#fit-list", FitList).focus()
+        else:
+            self.dismiss()
+
+    def on_key(self, event):
+        # A number typed in the panel goes to that model in the list
+        if event.character and event.character.isdigit() and self.focused is self.query_one("#fit-ways"):
+            models = self.query_one("#fit-list", FitList)
+            models.focus()
+            models.type_key(event.character)
+            event.stop()
+
+    # --- Changing the goal ---
+
+    def change(self, what, *args):
+        if self.fit:
+            keep = self.highlighted_group()
+            getattr(self.fit, what)(*args)
+            self.draw(keep)
+
+    def action_set_context(self, tokens):
+        self.change("set_context", tokens)
+
+    def action_step_context(self, step):
+        self.change("step_context", step)
+
+    def action_set_place(self, pc_memory):
+        self.change("set_place", pc_memory)
+
+    def action_toggle_place(self):
+        if self.fit:
+            self.change("set_place", not self.fit.goal.pc_memory)
+
+    def action_set_conversations(self, n):
+        self.change("set_conversations", n)
+
+    def action_next_conversations(self):
+        self.change("next_conversations")
+
+    def action_set_sort(self, by_context):
+        self.change("set_sort", by_context)
+
+    def action_toggle_sort(self):
+        if self.fit:
+            self.change("set_sort", not self.fit.goal.by_context)
+
+    def action_own_size(self):
+        if not self.fit:
+            return
+
+        def given(tokens):
+            self.show_keys()
+            if tokens:
+                self.change("own_size", tokens)
+
+        self.query_one("#fit-keys", Static).update(keys_line(*SizeBox.HINTS))
+        self.app.push_screen(SizeBox(), given)
+
+
+class SizeBox(ModalScreen):
+    """Asks for a context size of your own, such as 200k, in a box over the
+    fit. Enter adds it to the sizes at the top and picks it; Esc closes the
+    box and changes nothing."""
+
+    BINDINGS = [Binding("escape", "close", show=False)]
+    HINTS = [("Enter", "adds it"), ("Esc", "closes")]
+    NOTE = "It joins the sizes at the top, and stays there until you add another."
+
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="sizebox") as box:
+            box.border_title = "Context size of your own"
+            box.border_subtitle = "Enter adds it · Esc closes"
+            yield Static("How much context do you need, in tokens? Such as 200k, 1M or 204800.", id="sizebox-text")
+            yield Input(placeholder="200k", restrict=r"[0-9kKmM.,]*", id="sizebox-input")
+            yield Static(Content.styled(self.NOTE, MUTED), id="sizebox-why")
+
+    def on_mount(self):
+        self.query_one(Input).focus()
+
+    def key_hints(self):
+        return self.HINTS
+
+    @on(Input.Submitted)
+    def submitted(self, event):
+        tokens, why = parse_size(event.value)
+        if why:
+            self.query_one("#sizebox-why", Static).update(Content.styled(why, "$warning"))
+        else:
+            self.dismiss(tokens)
+
+    def action_close(self):
+        self.dismiss(None)
+
+    def on_click(self, event):
+        if event.widget is self:
+            self.dismiss(None)
+
+
+# --- On its own, typed in a terminal ---
+
+class FitApp(App):
+    """The fit on its own: the same screen as in the menu, in the menu's
+    look and the theme picked there. Esc or ctrl+c leaves it."""
+
+    CSS_PATH = "menu.tcss"
+    TITLE = "AI Leverage › Fit"
+    BINDINGS = [Binding("ctrl+c", "quit", show=False, priority=True)]
+
+    def on_mount(self):
+        theme = tui.saved_theme()
+        self.theme = theme if theme in self.available_themes else tui.DEFAULT_THEME
+        self.theme_changed_signal.subscribe(self, lambda changed: tui.save_theme(changed.name))
+        self.push_screen(FitScreen(leaving="quit"), lambda _: self.exit())
+
+
+def print_once():
+    """The list for the saved goal, once: plain for output that isn't a
+    terminal, in the theme's colours for one that is"""
     width = shutil.get_terminal_size((120, 50)).columns
-    screen.view = "list"
-    screen.selected = -1
-    lines = screen.list_screen(width)
-    print("\n".join(line.draw(width).rstrip() for line in lines).rstrip())
+    lines = Fit().printed(width)
+    if not sys.stdout.isatty():
+        print("\n".join(line.plain.rstrip() for line in lines))
+        return
+    from rich.console import Console
+    from rich.style import Style as RichStyle
+    from rich.text import Text
+    from textual.style import Style
+    from textual.theme import BUILTIN_THEMES
+
+    theme = BUILTIN_THEMES.get(tui.saved_theme()) or BUILTIN_THEMES[tui.DEFAULT_THEME]
+    variables = theme.to_color_system().generate()
+
+    def parse(style):
+        return Style.parse(style, variables)
+
+    def terminal_style(style):
+        # The terminal's own background is under it, so see-through colours are dimmed instead
+        faint = style.foreground is not None and style.foreground.a < 1
+        return style.rich_style + RichStyle(dim=True) if faint else style.rich_style
+
+    console = Console(highlight=False, soft_wrap=True)
+    for line in lines:
+        console.print(Text.assemble(*[(text, terminal_style(style))
+                                      for text, style in line.render(Style.null(), "", parse)]))
 
 
 def main():
-    global USE_COLOUR
     args = sys.argv[1:]
     if args and args != ["--print"]:
-        print(__doc__.split("\n\n")[3], file=sys.stderr)
+        print(__doc__[__doc__.index("Usage:"):].rstrip(), file=sys.stderr)
         sys.exit(1)
-    interactive = not args and sys.stdin.isatty() and sys.stdout.isatty()
-    USE_COLOUR = sys.stdout.isatty()
-    if interactive:
-        print("Working out what fits...", flush=True)
-    screen = Screen()
-    if interactive:
-        run(screen)
-    else:
-        print_once(screen)
+    if args or not (sys.stdin.isatty() and sys.stdout.isatty()):
+        try:
+            print_once()
+            sys.stdout.flush()
+        except BrokenPipeError:
+            # Output cut short, as by head: nothing more to say
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return
+    FitApp().run()
 
 
 if __name__ == "__main__":
